@@ -442,7 +442,7 @@
         document.getElementById('result').textContent = 'Calculating...';
         document.getElementById('plots').innerHTML = '';
         try {
-            const response = await fetch('http://localhost:8000/api/calculate', {
+            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
