@@ -5,11 +5,11 @@ from decimal import Decimal
 SS_BASE_MAX_MONTHLY = Decimal("4909.50")
 SS_BASE_MAX_DAILY = Decimal("163.65")
 SS_BASE_MIN_BY_GROUP = {
-    "Sou mensual; adult; Enginyeres i llicenciades universitàries": Decimal("1929.00"),
-    "Sou mensual; adult; Enginyers tècnics, perits i ajudants titulats": Decimal("1599.60"),
-    "Sou mensual; adult; Caps administratius i de taller": Decimal("1391.70"),
-    "Sou mensual; adult; altres": Decimal("1381.20"),
-    "Base diaria; adult": Decimal("46.04"),
+    "Sou mensual; Adulta; Enginyeres i llicenciades universitàries": Decimal("1929.00"),
+    "Sou mensual; Adulta; Enginyeres tècniques, perites i ajudants titulades": Decimal("1599.60"),
+    "Sou mensual; Adulta; Caps administratives i de taller": Decimal("1391.70"),
+    "Sou mensual; Adulta; altres": Decimal("1381.20"),
+    "Base diaria; Adulta": Decimal("46.04"),
     "Menor d'edat": Decimal("46.04"),
 }
 DEFAULT_SS_RATES = {

@@ -66,7 +66,7 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     ss_base_max = SS_BASE_MAX_MONTHLY
     gross_including_benefits = gross + retribucio_en_especie_ann
     monthly_base = gross_including_benefits / Decimal(n_pagues if pagues_prorratejades else 12)
-    is_daily = grup_cotitzacio in ["Base diaria; adult", "Menor d'edat"]
+    is_daily = grup_cotitzacio in ["Base diaria; Adulta", "Menor d'edat"]
     if monthly_base < ss_base_min:
         base_ss_adjusted = monthly_base
     else:
