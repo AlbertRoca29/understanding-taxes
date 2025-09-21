@@ -1,3 +1,5 @@
 plotly
 fastapi
-uvicorn
+gunicorn
+uvicorn[standard]
+python-multipart
