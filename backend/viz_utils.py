@@ -149,7 +149,7 @@ def plot_salary_blocks(
             bottom += tax
     ax1.set_xlabel("Blocs de sou brut anual", fontsize=40, labelpad=16)
     ax1.set_ylabel("Euros", fontsize=38, labelpad=16)
-    ax1.set_title("Distribució del sou net i impostos\n(primer bloc més ample segons sou)", fontsize=38, fontweight='bold', pad=28)
+    ax1.set_title("Distribució del sou net i impostos", fontsize=38, fontweight='bold', pad=28)
     # X-tick label management
     xtick_labels = [f'{gross_increments[i]:,.0f}' for i in range(len(gross_increments))]
     n_labels = len(xtick_labels)
