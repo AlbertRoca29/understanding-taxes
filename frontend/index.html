@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora IRPF</title>
+
+    <style>
+        .navbar {
+            width: 100vw;
+            background: var(--primary);
+            color: #fff;
+            padding: 0.5em 0;
+            display: flex;
+            justify-content: center;
+            gap: 2em;
+            font-size: 1.1em;
+            font-family: inherit;
+            margin-bottom: 18px;
+        }
+        .navbar a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.2em 0.7em;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .navbar a.active, .navbar a:hover {
+            background: #3d4e39;
+        }
+            :root {
+                --primary: #546c4e;
+                --accent: #f5f6fa;
+                --card: #fff;
+                --shadow: 0 2px 12px rgba(0,0,0,0.07);
+                --radius: 18px;
+                --input-bg: #f3f6fa;
+                --input-border: #e0e0e0;
+            }
+            html, body {
+                height: 100%;
+                min-height: 100vh;
+            }
+            body {
+                font-family: 'Inter', Arial, sans-serif;
+                background: var(--accent);
+                margin: 0;
+                padding: 0;
+                min-height: 100vh;
+                /* Remove flex centering to start at top */
+            }
+            .container {
+                width: 100%;
+                max-width: 420px;
+                margin: 32px auto 0 auto;
+                background: var(--card);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                padding: 38px 18px 32px 18px;
+                display: flex;
+                flex-direction: column;
+                /* Remove align-items: center to left-align content */
+            }
+            h1 {
+                text-align: center;
+                color: var(--primary);
+                margin-bottom: 30px;
+                font-size: 2em;
+                letter-spacing: 0.01em;
+                width: 100%;
+            }
+            form {
+                display: flex;
+                flex-direction: column;
+                gap: 22px;
+                width: 100%;
+                align-items: center;
+            }
+            .form-row {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+                align-items: center;
+            }
+            label {
+                font-weight: 500;
+                margin-bottom: 4px;
+                display: block;
+                text-align: left;
+                width: 100%;
+            }
+            input[type="number"], input[type="text"], select {
+                width: 100%;
+                padding: 10px 12px;
+                border-radius: 8px;
+                border: 1px solid var(--input-border);
+                background: var(--input-bg);
+                font-size: 1rem;
+                margin-bottom: 2px;
+            }
+            .pill-group {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                margin: 6px 0 0 0;
+            }
+            .pill {
+                padding: 8px 18px;
+                border-radius: 16px;
+                border: 1.5px solid var(--input-border);
+                background: var(--input-bg);
+                cursor: pointer;
+                font-weight: 500;
+                font-size: 1em;
+                transition: background 0.15s, border 0.15s;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            }
+            .pill.selected {
+                background: var(--primary);
+                color: #fff;
+                border-color: var(--primary);
+            }
+            .switch {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+            }
+            .switch input[type="checkbox"] {
+                display: none;
+            }
+            .slider {
+                width: 38px;
+                height: 22px;
+                background: #ccc;
+                border-radius: 12px;
+                position: relative;
+                transition: background 0.2s;
+            }
+            .slider:before {
+                content: '';
+                position: absolute;
+                left: 3px;
+                top: 3px;
+                width: 16px;
+                height: 16px;
+                background: #fff;
+                border-radius: 50%;
+                transition: transform 0.2s;
+            }
+            .switch input[type="checkbox"]:checked + .slider {
+                background: var(--primary);
+            }
+            .switch input[type="checkbox"]:checked + .slider:before {
+                transform: translateX(16px);
+            }
+            details {
+                background: #f7f9fb;
+                border-radius: 14px;
+                margin-bottom: 16px;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+                padding: 0;
+                width: 100%;
+                max-width: 420px;
+                margin-left: auto;
+                margin-right: auto;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            summary {
+                font-weight: 600;
+                color: var(--primary);
+                padding: 14px 0 14px 14px;
+                cursor: pointer;
+                outline: none;
+                font-size: 1.08em;
+                width: 100%;
+                text-align: left;
+            }
+            .group-content {
+                padding: 0 14px 18px 14px;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            .group-content > * {
+                align-self: center !important;
+            }
+            .add-btn, .remove-btn {
+                background: var(--primary);
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                padding: 6px 16px;
+                font-size: 1em;
+                margin: 8px auto 0 auto;
+                display: block;
+                cursor: pointer;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+                font-family: inherit;
+                font-weight: 500;
+                letter-spacing: 0.01em;
+            }
+            .remove-btn { background: #e74c3c; }
+            .add-btn:hover, .remove-btn:hover {
+                filter: brightness(0.95);
+            }
+            #result { margin-top: 32px; font-weight: bold; text-align: center; font-size: 1.13em; width: 100%; }
+            #plots { margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+            #plots img { display: block; margin-left: auto; margin-right: auto; }
+            @media (max-width: 600px) {
+                .container { max-width: 99vw; padding: 8px 2vw 12px 2vw; }
+                h1 { font-size: 1.15em; }
+                form { gap: 10px; }
+                .form-row { gap: 5px; }
+                details, .group-content { max-width: 99vw; }
+            }
+        </style>
+        <div class="navbar">
+            <a href="index.html" class="active">Calculadora IRPF</a>
+            <a href="increment.html">Increment de sou</a>
+        </div>
+        <div class="container">
+            <h1>Calculadora IRPF</h1>
+        <form id="irpfForm">
+            <div class="form-row">
+                <div>
+                    <label for="gross">Sou brut (€): <span style="color:red">*</span></label>
+                    <input type="number" id="gross" name="gross" required step="any" placeholder="Introdueix el sou brut">
+                </div>
+                <div>
+                    <label for="region">Comunitat autònoma: <span style="color:red">*</span></label>
+                    <select id="region" name="region" required>
+                        <option value="Catalunya">Catalunya</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label for="n_pagues">Nombre de pagues <span style="color:red">*</span></label>
+                    <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" value="14" placeholder="Ex: 14">
+                </div>
+                <div>
+                    <label for="grup_cotitzacio">Grup de cotització <span style="color:red">*</span></label>
+                    <select id="grup_cotitzacio" name="grup_cotitzacio" required>
+                        <option value="Sou mensual; adult; Enginyeres i llicenciades universitàries">Sou mensual; adult; Enginyeres i llicenciades universitàries</option>
+                        <option value="Sou mensual; adult; Enginyers tècnics, perits i ajudants titulats">Sou mensual; adult; Enginyers tècnics, perits i ajudants titulats</option>
+                        <option value="Sou mensual; adult; Caps administratius i de taller">Sou mensual; adult; Caps administratius i de taller</option>
+                        <option value="Sou mensual; adult; altres">Sou mensual; adult; altres</option>
+                        <option value="Base diaria; adult">Base diària; adult</option>
+                        <option value="Menor d'edat">Menor d'edat</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label for="age">Edat <span style="color:red">*</span></label>
+                    <input type="number" id="age" name="age" required min="16" max="100" value="30" placeholder="Ex: 30">
+                </div>
+                <div>
+                    <label>Tipus de contracte <span style="color:red">*</span></label>
+                    <div class="pill-group" id="contractTypePills">
+                        <div class="pill selected" data-value="indefinite">Indefinit</div>
+                        <div class="pill" data-value="temporary">Temporal</div>
+                    </div>
+                    <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
+                </div>
+            </div>
+            <details>
+                <summary>Extres i deduccions salarials</summary>
+                <div class="group-content">
+                    <label for="pagues_prorratejades">Pagues prorratejades</label>
+                    <div class="pill-group" id="paguesPills">
+                        <div class="pill selected" data-value="true">Sí</div>
+                        <div class="pill" data-value="false">No</div>
+                    </div>
+                    <input type="hidden" id="pagues_prorratejades" name="pagues_prorratejades" value="true">
+                    <label for="retribucio_en_especie_ann">Retribució en espècie (€):</label>
+                    <input type="number" id="retribucio_en_especie_ann" name="retribucio_en_especie_ann" value="0" step="any" placeholder="Ex: 0">
+                    <label for="other_deductions">Altres deduccions (€):</label>
+                    <input type="number" id="other_deductions" name="other_deductions" value="0" step="any" placeholder="Ex: 0">
+                </div>
+            </details>
+            <details>
+                <summary>Situació personal i familiar</summary>
+                <div class="group-content">
+                    <label for="disability_percent_self">Percentatge de discapacitat (teu):</label>
+                    <input type="range" id="disability_percent_self" name="disability_percent_self" min="0" max="100" value="0" style="width:100%">
+                    <span id="disability_percent_self_val">0%</span>
+                    <br>
+                    <label class="switch">
+                        <input type="checkbox" id="disability_self_help" name="disability_self_help">
+                        <span class="slider"></span>
+                        Necessita ajuda de mobilitat (teu)
+                    </label>
+                </div>
+                <summary>Fills</summary>
+                <div class="group-content" id="childrenGroup">
+                    <div id="childrenList"></div>
+                    <button type="button" class="add-btn" onclick="addChild()">+ Afegir fill</button>
+                </div>
+                <summary>Ascendents dependents</summary>
+                <div class="group-content" id="ascendentsGroup">
+                    <div id="ascendentsList"></div>
+                    <button type="button" class="add-btn" onclick="addAscendent()">+ Afegir ascendent</button>
+                </div>
+            </details>
+            <details>
+                <summary>Familiars amb discapacitat</summary>
+                <div class="group-content" id="relativesGroup">
+                    <div id="relativesList"></div>
+                    <button type="button" class="add-btn" onclick="addRelative()">+ Afegir familiar</button>
+                </div>
+            </details>
+            <button type="submit" style="margin-top:18px;font-size:1.1em;"  class="add-btn">Calcular</button>
+        <div id="result"></div>
+        <div id="plots"></div>
+        </div>
+    <script>
+    function updateSectionVisibility() {
+        // Age is always visible and required
+        // Children section: show if age >= 18 (parent age logic, can always show)
+        // Ascendents: always show
+        // Relatives: always show
+        // Could add more logic if needed
+    }
+    document.getElementById('age').addEventListener('input', updateSectionVisibility);
+    updateSectionVisibility();
+    // --- Modern UI logic for pills, toggles, dynamic lists, and slider ---
+    // Contract type pills
+    document.querySelectorAll('#contractTypePills .pill').forEach(pill => {
+        pill.onclick = function() {
+            document.querySelectorAll('#contractTypePills .pill').forEach(p => p.classList.remove('selected'));
+            pill.classList.add('selected');
+            document.getElementById('contract_type').value = pill.getAttribute('data-value');
+        };
+    });
+    // Prorated payments pills
+    document.querySelectorAll('#paguesPills .pill').forEach(pill => {
+        pill.onclick = function() {
+            document.querySelectorAll('#paguesPills .pill').forEach(p => p.classList.remove('selected'));
+            pill.classList.add('selected');
+            document.getElementById('pagues_prorratejades').value = pill.getAttribute('data-value');
+        };
+    });
+    // Slider for disability percent
+    const disabilitySlider = document.getElementById('disability_percent_self');
+    const disabilityVal = document.getElementById('disability_percent_self_val');
+    disabilitySlider.oninput = function() { disabilityVal.textContent = this.value + '%'; };
+    // Switch for disability self help
+    // Dynamic children list
+    let children = [];
+    function renderChildren() {
+        const list = document.getElementById('childrenList');
+        list.innerHTML = '';
+        children.forEach((child, i) => {
+            const row = document.createElement('div');
+            row.className = 'form-row';
+            row.innerHTML = `
+                <input type="number" min="0" max="30" placeholder="Edat" value="${child.age}" style="max-width:80px;">
+                <input type="number" min="0" max="100" placeholder="% discapacitat" value="${child.disability}" style="max-width:110px;">
+                <button type="button" class="remove-btn" onclick="removeChild(${i})">&times;</button>
+            `;
+            list.appendChild(row);
+        });
+    }
+    window.addChild = function() { children.push({age:'',disability:''}); renderChildren(); };
+    window.removeChild = function(i) { children.splice(i,1); renderChildren(); };
+    renderChildren();
+    // Dynamic ascendents list
+    let ascendents = [];
+    function renderAscendents() {
+        const list = document.getElementById('ascendentsList');
+        list.innerHTML = '';
+        ascendents.forEach((age, i) => {
+            const row = document.createElement('div');
+            row.className = 'form-row';
+            row.innerHTML = `
+                <input type="number" min="40" max="120" placeholder="Edat" value="${age}" style="max-width:100px;">
+                <button type="button" class="remove-btn" onclick="removeAscendent(${i})">&times;</button>
+            `;
+            list.appendChild(row);
+        });
+    }
+    window.addAscendent = function() { ascendents.push(''); renderAscendents(); };
+    window.removeAscendent = function(i) { ascendents.splice(i,1); renderAscendents(); };
+    renderAscendents();
+    // Dynamic relatives list
+    let relatives = [];
+    function renderRelatives() {
+        const list = document.getElementById('relativesList');
+        list.innerHTML = '';
+        relatives.forEach((rel, i) => {
+            const row = document.createElement('div');
+            row.className = 'form-row';
+            row.innerHTML = `
+                <input type="number" min="0" max="100" placeholder="% discapacitat" value="${rel.perc}" style="max-width:110px;">
+                <label class="switch"><input type="checkbox" ${rel.help?'checked':''} onchange="toggleRelativeHelp(${i},this.checked)"><span class="slider"></span>Ajuda</label>
+                <button type="button" class="remove-btn" onclick="removeRelative(${i})">&times;</button>
+            `;
+            list.appendChild(row);
+        });
+    }
+    window.addRelative = function() { relatives.push({perc:'',help:false}); renderRelatives(); };
+    window.removeRelative = function(i) { relatives.splice(i,1); renderRelatives(); };
+    window.toggleRelativeHelp = function(i, val) { relatives[i].help = val; };
+    renderRelatives();
+    // --- Form submission ---
+    document.getElementById('irpfForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        // Collect children
+        const children_ages = children.map(c => c.age).filter(x=>x!=='').join(',');
+        const children_disabilities = children.map(c => c.disability).filter(x=>x!=='').join(',');
+        // Collect ascendents
+        const ascendents_ages = ascendents.filter(x=>x!=='').join(',');
+        // Collect relatives
+        const disability_relatives_perc = relatives.map(r => r.perc).filter(x=>x!=='').join(',');
+        const disability_relatives_help = relatives.map(r => r.help ? 'true' : 'false').join(',');
+        const data = {
+            gross: parseFloat(document.getElementById('gross').value),
+            region: document.getElementById('region').value,
+            n_pagues: parseInt(document.getElementById('n_pagues').value),
+            pagues_prorratejades: document.getElementById('pagues_prorratejades').value === 'true',
+            retribucio_en_especie_ann: parseFloat(document.getElementById('retribucio_en_especie_ann').value),
+            grup_cotitzacio: document.getElementById('grup_cotitzacio').value,
+            contract_type: document.getElementById('contract_type').value,
+            other_deductions: parseFloat(document.getElementById('other_deductions').value),
+            age: parseInt(document.getElementById('age').value),
+            disability_percent_self: parseInt(document.getElementById('disability_percent_self').value),
+            disability_self_help: document.getElementById('disability_self_help').checked,
+            children_ages,
+            children_disabilities,
+            ascendents_ages,
+            disability_relatives_perc,
+            disability_relatives_help
+        };
+        document.getElementById('result').textContent = 'Calculating...';
+        document.getElementById('plots').innerHTML = '';
+        try {
+            const response = await fetch('http://localhost:8000/api/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('API error');
+            const result = await response.json();
+            document.getElementById('result').innerHTML = `
+                <b>Net per paga:</b> €${result.sou_net_per_paga.toFixed(2)}<br>
+                <b>Net mensual equivalent:</b> €${result.sou_net_mensual_equivalent.toFixed(2)}<br>
+                <b>IRPF anual:</b> €${result.irpf_anual.toFixed(2)}<br>
+                <b>Seguretat Social anual:</b> €${result.cotitzacions_anuals.toFixed(2)}<br>
+            `;
+            if (result.plots && Array.isArray(result.plots)) {
+                result.plots.forEach((img, i) => {
+                    const image = document.createElement('img');
+                    image.src = 'data:image/png;base64,' + img;
+                    image.alt = 'Plot ' + (i+1);
+                    image.style = 'max-width:100%;margin:10px 0;';
+                    document.getElementById('plots').appendChild(image);
+                });
+            }
+        } catch (err) {
+            document.getElementById('result').textContent = 'Error: ' + err.message;
+        }
+    });
+    </script>
+</body>
+</html>
