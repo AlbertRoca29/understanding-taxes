@@ -91,7 +91,7 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         base_imposable = Decimal("0")
 
     irpf_anual = irpf_scale.tax_on_base(base_imposable)
-    
+
     irpf_per_paga = irpf_anual / Decimal(n_pagues)
     gross_per_paga = gross_including_benefits / Decimal(n_pagues)
     net_per_paga = gross_per_paga - cotitzacions_mensuals - irpf_per_paga
@@ -195,7 +195,11 @@ async def calculate_increment(data: IncrementRequest):
         data.grup_cotitzacio, data.contract_type, Decimal(str(data.other_deductions)), fam, region)
     increment_annual_net = new["net_per_paga"] * Decimal(data.n_pagues) - prev["net_per_paga"] * Decimal(data.n_pagues)
     increment_monthly_net = new["net_monthly_equivalent"] - prev["net_monthly_equivalent"]
+    # Pie chart for the difference
+    fig = viz_utils.plot_increment_difference_pie(prev, new, return_fig=True)
+    pie_base64 = fig_to_base64(fig)
     return {
         "increment_annual_net": float(round_euro(increment_annual_net)),
         "increment_monthly_net": float(round_euro(increment_monthly_net)),
+        "increment_pie": pie_base64
     }

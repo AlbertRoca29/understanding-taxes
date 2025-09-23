@@ -2,6 +2,42 @@ import matplotlib.pyplot as plt
 from decimal import Decimal
 import numpy as np
 
+def plot_increment_difference_pie(prev_calc, new_calc, return_fig=False):
+    """
+    Pie plot for the difference between two salary calculations, using plot_net_pay_and_taxes logic but for the increment only.
+    """
+    from decimal import Decimal
+    diff = {}
+    for k in [
+        "gross_including_benefits", "net_per_paga", "cotitzacions_anuals", "irpf_anual",
+        "ss_contingencies_comunes_monthly", "t_des_monthly", "ss_training_monthly", "ss_mei_monthly"
+    ]:
+        diff[k] = new_calc[k] - prev_calc[k]
+    n_pagues = new_calc["n_pagues"]
+    # Compose annual values for SS
+    ss_contingencies_comunes_annual = diff["ss_contingencies_comunes_monthly"] * Decimal(n_pagues)
+    t_des_annual = diff["t_des_monthly"] * Decimal(n_pagues)
+    ss_training_annual = diff["ss_training_monthly"] * Decimal(n_pagues)
+    ss_mei_annual = diff["ss_mei_monthly"] * Decimal(n_pagues)
+    fig = plot_net_pay_and_taxes(
+        diff["gross_including_benefits"],
+        diff["net_per_paga"],
+        n_pagues,
+        diff["cotitzacions_anuals"],
+        diff["irpf_anual"],
+        ss_contingencies_comunes_annual,
+        t_des_annual,
+        ss_training_annual,
+        ss_mei_annual,
+        return_fig=True
+    )
+    if return_fig:
+        return fig
+    else:
+        import matplotlib.pyplot as plt
+        plt.show()
+
+
 def plot_net_pay_and_taxes(
     gross_including_benefits: Decimal,
     net_per_paga: Decimal,

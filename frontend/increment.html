@@ -207,6 +207,7 @@
         document.getElementById('result').textContent = 'Calculant...';
         try {
             const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/increment', {
+            // const response = await fetch('http://localhost:8000/api/increment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -225,7 +226,8 @@
             const result = await response.json();
             document.getElementById('result').innerHTML =
                 `<b>Increment net anual:</b> €${result.increment_annual_net.toFixed(2)}<br>` +
-                `<b>Increment net mensual equivalent:</b> €${result.increment_monthly_net.toFixed(2)}`;
+                `<b>Increment net mensual equivalent:</b> €${result.increment_monthly_net.toFixed(2)}<br>` +
+                (result.increment_pie ? `<div style="margin-top:18px"><img src="data:image/png;base64,${result.increment_pie}" style="max-width:100%"></div>` : "");
         } catch (err) {
             document.getElementById('result').textContent = 'Error: ' + err.message;
         }
