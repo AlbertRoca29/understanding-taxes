@@ -105,7 +105,6 @@ def calculate_base_imposable_irpf(annual_gross: Decimal, annual_employee_ss: Dec
     return base
 
 
-# Helper moved from variables.py
 def compute_reduction_by_work(rendimiento_neto: Decimal) -> Decimal:
     """
     Compute the 'reducción por obtención de rendimientos del trabajo' per Cuadro 2.

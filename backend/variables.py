@@ -28,6 +28,15 @@ IRPF_SCALE_ESTATAL = [
     (60000, 300000, Decimal("0.225")),
     (300000, None, Decimal("0.245"))
 ]
+
+# IRPF_SCALE_CATALUNYA = [
+#     (0, 12450, Decimal("0.095")),
+#     (12450, 20200, Decimal("0.12")),
+#     (20200, 35200, Decimal("0.15")),
+#     (35200, 60000, Decimal("0.185")),
+#     (60000, 300000, Decimal("0.225")),
+#     (300000, None, Decimal("0.245"))
+# ]
 IRPF_SCALE_CATALUNYA = [
     (0, 12450, Decimal("0.12")),
     (12450, 17707.20, Decimal("0.12")),

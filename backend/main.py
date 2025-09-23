@@ -77,24 +77,26 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     ss_training_monthly = base_ss_adjusted * DEFAULT_SS_RATES["training_worker"]
     ss_mei_monthly = base_ss_adjusted * DEFAULT_SS_RATES["mei_worker"]
     cotitzacions_mensuals = ss_contingencies_comunes_monthly + t_des_monthly + ss_training_monthly + ss_mei_monthly
-    cotitzacions_anuals = cotitzacions_mensuals * Decimal(n_pagues)
+    cotitzacions_anuals = cotitzacions_mensuals * 12
 
     otros_gastos_generales = GASTOS_DEDUCIDOS["otros_gastos_generales"]
-    # Add otros_gastos_generales to other_deductions
+    minimo_pf = fam.minimo_personal_familiar()
+
     base_imponible_trabajo = gross_including_benefits - cotitzacions_anuals - otros_gastos_generales - other_deductions
-    # Compute reduction by work
+    print(base_imponible_trabajo)
     reduction_by_work = compute_reduction_by_work(base_imponible_trabajo)
-    # Add reduction_by_work to other_deductions for IRPF base
-    base_imposable = calculate_base_imposable_irpf(
-        gross_including_benefits, cotitzacions_anuals, fam, other_deductions = reduction_by_work
-    )
+    print(reduction_by_work,minimo_pf)
+    base_imposable = base_imponible_trabajo - reduction_by_work - minimo_pf
+    if base_imposable < 0:
+        base_imposable = Decimal("0")
+
     irpf_anual = irpf_scale.tax_on_base(base_imposable)
+    
     irpf_per_paga = irpf_anual / Decimal(n_pagues)
     gross_per_paga = gross_including_benefits / Decimal(n_pagues)
     net_per_paga = gross_per_paga - cotitzacions_mensuals - irpf_per_paga
     net_monthly_equivalent = (net_per_paga * Decimal(n_pagues)) / Decimal(12)
     return {
-        # ...existing code...
         "otros_gastos_generales": otros_gastos_generales,
         "reduction_by_work": reduction_by_work,
         "fam": fam,

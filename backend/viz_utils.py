@@ -80,7 +80,7 @@ def plot_salary_blocks(
         block_size = Decimal("10000")
     else:
         block_size = Decimal("1000")
-    first_block_gross = Decimal("15000")
+    first_block_gross = Decimal("1000")
     remaining_gross = gross - first_block_gross
     n_remaining_blocks = int(remaining_gross // block_size) + 1 if remaining_gross > 0 else 0
     gross_increments = [first_block_gross] + [first_block_gross + block_size*(i+1) for i in range(n_remaining_blocks)]
@@ -132,14 +132,15 @@ def plot_salary_blocks(
             float(current_result["ss_mei_monthly"] * Decimal(n_pagues) - prev_result["ss_mei_monthly"] * Decimal(n_pagues))
         ]
         taxes_blocks_breakdown.append(taxes_increment)
-    # Make the plot wider and bars thicker, reduce gap
+    # --- First plot: current implementation (absolute values) ---
     n_bars = len(net_blocks)
-    fig, ax1 = plt.subplots(figsize=(18, 10))  # wide and tall
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 18))  # two plots vertically
     bar_width = 0.95
     bar_widths = [bar_width] * n_bars
     bar_positions = [i for i in range(n_bars)]
     tax_colors = ["#ff9999", "#66b3ff", "#6666ff", "#ffcc99", "#c2c2f0"]
-    for i in range(1,n_bars):
+    # First plot: absolute values
+    for i in range(1, n_bars):
         bottom = 0
         ax1.bar(bar_positions[i], net_blocks[i], bar_widths[i], color="#99ff99", label="Sou net" if i==0 else "", edgecolor='black')
         bottom = net_blocks[i]
@@ -163,11 +164,78 @@ def plot_salary_blocks(
     ax1.grid(axis="y", linestyle="--", alpha=0.5)
     handles, labels = ax1.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    # Multi-line legend for long category names
     import textwrap
     wrapped_labels = ["\n".join(textwrap.wrap(lbl, 22)) for lbl in by_label.keys()]
     legend = ax1.legend(by_label.values(), wrapped_labels, loc="upper center", bbox_to_anchor=(0.5, -0.35), fontsize=22, ncol=2, frameon=False)
-    # plt.tight_layout(pad=5.0)
+
+    # --- Second plot: 100% stacked bar (percentages of each component per block) ---
+    # For each block, calculate the total and the percentage of each component
+    percent_blocks = []  # list of lists: [net%, irpf%, ss_comunes%, ss_atur%, ss_formacio%, ss_mei%]
+    for i in range(1, n_bars):
+        # For each block, get the current gross
+        current_gross = gross_increments[i] - gross_increments[i-1]
+        current_result = compute_net_pay(
+            gross_increments[i],
+            n_pagues,
+            pagues_prorratejades,
+            retribucio_en_especie_ann,
+            grup_cotitzacio,
+            contract_type,
+            other_deductions,
+            fam,
+            region
+        )
+        prev_result = compute_net_pay(
+            gross_increments[i-1],
+            n_pagues,
+            pagues_prorratejades,
+            retribucio_en_especie_ann,
+            grup_cotitzacio,
+            contract_type,
+            other_deductions,
+            fam,
+            region
+        )
+        net = float(current_result["net_per_paga"] * Decimal(n_pagues) )
+        irpf = float(current_result["irpf_anual"])
+        ss_comunes = float(current_result["ss_contingencies_comunes_monthly"] * Decimal(n_pagues) )
+        ss_atur = float(current_result["t_des_monthly"] * Decimal(n_pagues))
+        ss_formacio = float(current_result["ss_training_monthly"] * Decimal(n_pagues) )
+        ss_mei = float(current_result["ss_mei_monthly"] * Decimal(n_pagues) )
+        total = net + irpf + ss_comunes + ss_atur + ss_formacio + ss_mei
+        if total == 0:
+            percent_blocks.append([0, 0, 0, 0, 0, 0])
+        else:
+            percent_blocks.append([
+                100 * net / total,
+                100 * irpf / total,
+                100 * ss_comunes / total,
+                100 * ss_atur / total,
+                100 * ss_formacio / total,
+                100 * ss_mei / total
+            ])
+    # Prepare data for stacked bar
+    percent_blocks = np.array(percent_blocks)
+    bar_positions2 = bar_positions[1:]
+    labels2 = ["Sou net", "IRPF", "SS: Contingències Comunes", "SS: Atur", "SS: Formació", "SS: MEI"]
+    colors2 = ["#99ff99"] + tax_colors
+    bottom = np.zeros(len(percent_blocks))
+    for j in range(6):
+        ax2.bar(bar_positions2, percent_blocks[:, j], bar_width, bottom=bottom, color=colors2[j], label=labels2[j], edgecolor='black')
+        bottom += percent_blocks[:, j]
+    ax2.set_xlabel("Blocs de sou brut anual", fontsize=40, labelpad=16)
+    ax2.set_ylabel("Percentatge (%)", fontsize=38, labelpad=16)
+    ax2.set_title("Percentatge de cada concepte per bloc de sou", fontsize=38, fontweight='bold', pad=28)
+    # X-tick label management for second plot
+    xtick_labels2 = xtick_labels[1:]
+    ax2.set_xticks(bar_positions2)
+    ax2.set_xticklabels(xtick_labels2, rotation=30, ha="right", fontsize=30)
+    ax2.tick_params(axis='y', labelsize=20)
+    ax2.grid(axis="y", linestyle="--", alpha=0.5)
+    ax2.set_ylim(0, 100)
+    ax2.legend(loc="upper center", bbox_to_anchor=(0.5, -0.55), fontsize=22, ncol=2, frameon=False)
+
+    plt.tight_layout(pad=5.0)
     if return_fig:
         return fig
     else:
