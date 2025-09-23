@@ -5,10 +5,8 @@ from pydantic import BaseModel
 from decimal import Decimal
 import base64
 import io
-import sys
-import os
-from utils import FamilySituation, IRPFScale, calculate_base_imposable_irpf, apply_base_limits, round_euro
-from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, SS_BASE_MAX_DAILY, DEFAULT_SS_RATES
+from utils import FamilySituation, IRPFScale, calculate_base_imposable_irpf, apply_base_limits, round_euro, compute_reduction_by_work
+from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, SS_BASE_MAX_DAILY, DEFAULT_SS_RATES, GASTOS_DEDUCIDOS
 import viz_utils
 import matplotlib.pyplot as plt
 
@@ -65,26 +63,30 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     ss_base_min = SS_BASE_MIN_BY_GROUP[grup_cotitzacio]
     ss_base_max = SS_BASE_MAX_MONTHLY
     gross_including_benefits = gross + retribucio_en_especie_ann
-    monthly_base = gross_including_benefits / Decimal(n_pagues if pagues_prorratejades else 12)
+    monthly_base = gross_including_benefits / 12
     is_daily = grup_cotitzacio in ["Base diaria; Adulta", "Menor d'edat"]
-    if monthly_base < ss_base_min:
-        base_ss_adjusted = monthly_base
-    else:
-        base_ss_adjusted = apply_base_limits(
-            monthly_base,
-            ss_base_min,
-            ss_base_max if not is_daily else SS_BASE_MAX_DAILY,
-            is_daily=is_daily,
-            days_in_month=30
-        )
+    base_ss_adjusted = apply_base_limits(
+        monthly_base,
+        ss_base_min,
+        ss_base_max if not is_daily else SS_BASE_MAX_DAILY,
+        is_daily=is_daily,
+        days_in_month=30
+    )
     ss_contingencies_comunes_monthly = base_ss_adjusted * DEFAULT_SS_RATES["contingencies_common_worker"]
     t_des_monthly = base_ss_adjusted * (DEFAULT_SS_RATES["unemployment_worker_indefinite"] if contract_type == "indefinite" else DEFAULT_SS_RATES["unemployment_worker_temporary"])
     ss_training_monthly = base_ss_adjusted * DEFAULT_SS_RATES["training_worker"]
     ss_mei_monthly = base_ss_adjusted * DEFAULT_SS_RATES["mei_worker"]
     cotitzacions_mensuals = ss_contingencies_comunes_monthly + t_des_monthly + ss_training_monthly + ss_mei_monthly
     cotitzacions_anuals = cotitzacions_mensuals * Decimal(n_pagues)
+
+    otros_gastos_generales = GASTOS_DEDUCIDOS["otros_gastos_generales"]
+    # Add otros_gastos_generales to other_deductions
+    base_imponible_trabajo = gross_including_benefits - cotitzacions_anuals - otros_gastos_generales - other_deductions
+    # Compute reduction by work
+    reduction_by_work = compute_reduction_by_work(base_imponible_trabajo)
+    # Add reduction_by_work to other_deductions for IRPF base
     base_imposable = calculate_base_imposable_irpf(
-        gross_including_benefits, cotitzacions_anuals, fam, other_deductions=other_deductions
+        gross_including_benefits, cotitzacions_anuals, fam, other_deductions = reduction_by_work
     )
     irpf_anual = irpf_scale.tax_on_base(base_imposable)
     irpf_per_paga = irpf_anual / Decimal(n_pagues)
@@ -92,6 +94,9 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     net_per_paga = gross_per_paga - cotitzacions_mensuals - irpf_per_paga
     net_monthly_equivalent = (net_per_paga * Decimal(n_pagues)) / Decimal(12)
     return {
+        # ...existing code...
+        "otros_gastos_generales": otros_gastos_generales,
+        "reduction_by_work": reduction_by_work,
         "fam": fam,
         "gross_including_benefits": gross_including_benefits,
         "n_pagues": n_pagues,

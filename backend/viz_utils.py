@@ -80,7 +80,7 @@ def plot_salary_blocks(
         block_size = Decimal("10000")
     else:
         block_size = Decimal("1000")
-    first_block_gross = block_size
+    first_block_gross = Decimal("15000")
     remaining_gross = gross - first_block_gross
     n_remaining_blocks = int(remaining_gross // block_size) + 1 if remaining_gross > 0 else 0
     gross_increments = [first_block_gross] + [first_block_gross + block_size*(i+1) for i in range(n_remaining_blocks)]
@@ -139,7 +139,7 @@ def plot_salary_blocks(
     bar_widths = [bar_width] * n_bars
     bar_positions = [i for i in range(n_bars)]
     tax_colors = ["#ff9999", "#66b3ff", "#6666ff", "#ffcc99", "#c2c2f0"]
-    for i in range(n_bars):
+    for i in range(1,n_bars):
         bottom = 0
         ax1.bar(bar_positions[i], net_blocks[i], bar_widths[i], color="#99ff99", label="Sou net" if i==0 else "", edgecolor='black')
         bottom = net_blocks[i]

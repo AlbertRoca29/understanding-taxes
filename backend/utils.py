@@ -103,3 +103,20 @@ def calculate_base_imposable_irpf(annual_gross: Decimal, annual_employee_ss: Dec
     if base < 0:
         base = Decimal("0")
     return base
+
+
+# Helper moved from variables.py
+def compute_reduction_by_work(rendimiento_neto: Decimal) -> Decimal:
+    """
+    Compute the 'reducción por obtención de rendimientos del trabajo' per Cuadro 2.
+    """
+    rn = rendimiento_neto
+    if rn <= REDUCTION_WORK["upper1"]:
+        return REDUCTION_WORK["amount1"]
+    if rn <= REDUCTION_WORK["upper2"]:
+        val = REDUCTION_WORK["amount1"] - (REDUCTION_WORK["coef2"] * (rn - REDUCTION_WORK["upper1"]))
+        return max(Decimal("0.00"), val.quantize(Decimal("0.01")))
+    if rn <= REDUCTION_WORK["upper3"]:
+        val = REDUCTION_WORK["base3"] - (REDUCTION_WORK["coef3"] * (rn - REDUCTION_WORK["upper2"]))
+        return max(Decimal("0.00"), val.quantize(Decimal("0.01")))
+    return Decimal("0.00")
