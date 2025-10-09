@@ -57,9 +57,10 @@ def fig_to_base64(fig):
     plt.close(fig)
     return img_base64
 
+from utils import calcular_gastos_deducibles, calcular_cuota_retencion, redondear1, truncar
+
 def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region):
     # fam: FamilySituation, region: str
-    irpf_scale = IRPFScale.combined_scale(IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL)  # TODO: region-specific
     ss_base_min = SS_BASE_MIN_BY_GROUP[grup_cotitzacio]
     ss_base_max = SS_BASE_MAX_MONTHLY
     gross_including_benefits = gross + retribucio_en_especie_ann
@@ -79,25 +80,33 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     cotitzacions_mensuals = ss_contingencies_comunes_monthly + t_des_monthly + ss_training_monthly + ss_mei_monthly
     cotitzacions_anuals = cotitzacions_mensuals * 12
 
-    otros_gastos_generales = GASTOS_DEDUCIDOS["otros_gastos_generales"]
+    # Calcular gastos deducibles oficiales
+    otrosgastos = calcular_gastos_deducibles(
+        gross_including_benefits,
+        cotitzacions_anuals,
+        False,  # movilidad_geografica (ajustar si tienes el dato)
+        fam.disability_percent_self >= 33 and fam.disability_percent_self < 65,
+        fam.disability_percent_self >= 65,
+        "ACTIVO"  # situper (ajustar si tienes el dato)
+    )
+
     minimo_pf = fam.minimo_personal_familiar()
 
-    base_imponible_trabajo = gross_including_benefits - cotitzacions_anuals - otros_gastos_generales - other_deductions
-    print(base_imponible_trabajo)
+    base_imponible_trabajo = gross_including_benefits - cotitzacions_anuals - otrosgastos - other_deductions
     reduction_by_work = compute_reduction_by_work(base_imponible_trabajo)
-    print(reduction_by_work,minimo_pf)
-    base_imposable = base_imponible_trabajo - reduction_by_work - minimo_pf
-    if base_imposable < 0:
-        base_imposable = Decimal("0")
+    base_imponible = base_imponible_trabajo - reduction_by_work
+    if base_imponible < 0:
+        base_imponible = Decimal("0")
 
-    irpf_anual = irpf_scale.tax_on_base(base_imposable)
+    # Calcular cuota oficial con escala combinada
+    irpf_anual = calcular_cuota_retencion(base_imponible, minimo_pf)
 
     irpf_per_paga = irpf_anual / Decimal(n_pagues)
     gross_per_paga = gross_including_benefits / Decimal(n_pagues)
     net_per_paga = gross_per_paga - cotitzacions_mensuals - irpf_per_paga
     net_monthly_equivalent = (net_per_paga * Decimal(n_pagues)) / Decimal(12)
     return {
-        "otros_gastos_generales": otros_gastos_generales,
+        "otros_gastos_generales": otrosgastos,
         "reduction_by_work": reduction_by_work,
         "fam": fam,
         "gross_including_benefits": gross_including_benefits,
@@ -113,12 +122,12 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "ss_mei_monthly": ss_mei_monthly,
         "cotitzacions_mensuals": cotitzacions_mensuals,
         "cotitzacions_anuals": cotitzacions_anuals,
-        "base_imposable": base_imposable,
-        "irpf_anual": irpf_anual,
-        "irpf_per_paga": irpf_per_paga,
-        "gross_per_paga": gross_per_paga,
-        "net_per_paga": net_per_paga,
-        "net_monthly_equivalent": net_monthly_equivalent,
+        "base_imponible": base_imponible,
+        "irpf_anual": redondear1(irpf_anual),
+        "irpf_per_paga": redondear1(irpf_per_paga),
+        "gross_per_paga": redondear1(gross_per_paga),
+        "net_per_paga": redondear1(net_per_paga),
+        "net_monthly_equivalent": redondear1(net_monthly_equivalent),
     }
 
 @app.post("/api/calculate")

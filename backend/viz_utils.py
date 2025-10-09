@@ -37,7 +37,6 @@ def plot_increment_difference_pie(prev_calc, new_calc, return_fig=False):
         import matplotlib.pyplot as plt
         plt.show()
 
-
 def plot_net_pay_and_taxes(
     gross_including_benefits: Decimal,
     net_per_paga: Decimal,
@@ -178,24 +177,24 @@ def plot_salary_blocks(
     # First plot: absolute values
     for i in range(1, n_bars):
         bottom = 0
-        ax1.bar(bar_positions[i], net_blocks[i], bar_widths[i], color="#99ff99", label="Sou net" if i==0 else "", edgecolor='black')
+        ax1.bar(bar_positions[i], net_blocks[i], bar_widths[i], color="#99ff99", label="Sou net" if i==0 else "", edgecolor='black',linewidth=0.1)
         bottom = net_blocks[i]
         for j, tax in enumerate(taxes_blocks_breakdown[i]):
             ax1.bar(bar_positions[i], tax, bar_widths[i], bottom=bottom, color=tax_colors[j],
-                    label=["IRPF", "SS: Contingències Comunes", "SS: Atur", "SS: Formació", "SS: MEI"][j] if i==0 else "", edgecolor='black')
+                    label=["IRPF", "SS: Contingències Comunes", "SS: Atur", "SS: Formació", "SS: MEI"][j] if i==0 else "", edgecolor='black',linewidth=0.1)
             bottom += tax
-    ax1.set_xlabel("Blocs de sou brut anual", fontsize=40, labelpad=16)
-    ax1.set_ylabel("Euros", fontsize=38, labelpad=16)
+    ax1.set_xlabel("Blocs de sou brut anual", fontsize=34, labelpad=16)
+    ax1.set_ylabel("Euros", fontsize=34, labelpad=16)
     ax1.set_title("Distribució del sou net i impostos", fontsize=38, fontweight='bold', pad=28)
     # X-tick label management
     xtick_labels = [f'{gross_increments[i]:,.0f}' for i in range(len(gross_increments))]
     n_labels = len(xtick_labels)
-    max_labels = 12
+    max_labels = 50
     if n_labels > max_labels:
         step = (n_labels // max_labels) + 1
         xtick_labels = [label if i % step == 0 or i == n_labels-1 else '' for i, label in enumerate(xtick_labels)]
     ax1.set_xticks(bar_positions)
-    ax1.set_xticklabels(xtick_labels, rotation=30, ha="right", fontsize=30)
+    ax1.set_xticklabels(xtick_labels, rotation=30, ha="right", fontsize=12)
     ax1.tick_params(axis='y', labelsize=20)
     ax1.grid(axis="y", linestyle="--", alpha=0.5)
     handles, labels = ax1.get_legend_handles_labels()
@@ -265,7 +264,7 @@ def plot_salary_blocks(
     # X-tick label management for second plot
     xtick_labels2 = xtick_labels[1:]
     ax2.set_xticks(bar_positions2)
-    ax2.set_xticklabels(xtick_labels2, rotation=30, ha="right", fontsize=30)
+    ax2.set_xticklabels(xtick_labels2, rotation=30, ha="right", fontsize=12)
     ax2.tick_params(axis='y', labelsize=20)
     ax2.grid(axis="y", linestyle="--", alpha=0.5)
     ax2.set_ylim(0, 100)
