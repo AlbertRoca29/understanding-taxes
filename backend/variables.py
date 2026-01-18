@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-# Seguretat Social 2025
+# Seguretat Social 2026
 SS_BASE_MAX_MONTHLY = Decimal("4909.50")
 SS_BASE_MAX_DAILY = Decimal("163.65")
 SS_BASE_MIN_BY_GROUP = {
@@ -28,15 +28,6 @@ IRPF_SCALE_ESTATAL = [
     (60000, 300000, Decimal("0.225")),
     (300000, None, Decimal("0.245"))
 ]
-
-# IRPF_SCALE_CATALUNYA = [
-#     (0, 12450, Decimal("0.095")),
-#     (12450, 20200, Decimal("0.12")),
-#     (20200, 35200, Decimal("0.15")),
-#     (35200, 60000, Decimal("0.185")),
-#     (60000, 300000, Decimal("0.225")),
-#     (300000, None, Decimal("0.245"))
-# ]
 IRPF_SCALE_CATALUNYA = [
     (0, 12450, Decimal("0.095")),
     (12450, 17707.20, Decimal("0.12")),
@@ -50,7 +41,6 @@ IRPF_SCALE_CATALUNYA = [
 ]
 
 
-
 # Mínim contribuent general
 MINIMO_CONTRIBUYENTE = Decimal("5550.00")
 MINIMO_65 = Decimal("1150.00")
@@ -62,6 +52,7 @@ CHILDREN_UNDER_25_ADJUSTMENT = [
     (3, Decimal("4000.00")),
     (4, Decimal("4500.00")),
 ]
+
 CHILDREN_UNDER_3_EXTRA = Decimal("2800.00")
 
 ASCENDENTS_ADJUSTMENT = [
@@ -100,12 +91,6 @@ GASTOS_DEDUCIDOS = {
     "discapacidad_trabajador_activo_grave": Decimal("7750.00"),
 }
 
-# Límites excluyentes de retención (art. 81 RIRPF)
-EXCLUSION_LIMITS = {
-    "SITUACION1": {1: Decimal("17644.00"), 2: Decimal("18694.00")},
-    "SITUACION2": {0: Decimal("17197.00"), 1: Decimal("18130.00"), 2: Decimal("19262.00")},
-    "SITUACION3": {0: Decimal("15876.00"), 1: Decimal("16342.00"), 2: Decimal("16867.00")},
-}
 
 # Tipos fijos / mínimos aplicables
 TIPOS_FIJOS = {

@@ -105,172 +105,123 @@ def plot_salary_blocks(
     compute_net_pay,
     return_fig: bool = False
 ):
-    # Dynamic block size
+    # New behavior: plot two lines
+    # - Marginal IRPF (%) vs gross
+    # - Total IRPF (euros, annual) vs gross
+    # We'll sample a grid of gross values and call compute_net_pay for each sample to obtain
+    # the base_imponible, marginal rate and total IRPF. Using the marginal returned by
+    # compute_net_pay (if available) gives an exact derivative-based marginal.
     gross_float = float(gross)
-    if gross_float > 1e7:
-        raise ValueError("Gross salary too large to plot blocks (max 10M EUR)")
-    elif gross_float > 1e6:
-        block_size = Decimal("100000")
-    elif gross_float > 1e5:
-        block_size = Decimal("10000")
-    else:
-        block_size = Decimal("1000")
-    first_block_gross = Decimal("1000")
-    remaining_gross = gross - first_block_gross
-    n_remaining_blocks = int(remaining_gross // block_size) + 1 if remaining_gross > 0 else 0
-    gross_increments = [first_block_gross] + [first_block_gross + block_size*(i+1) for i in range(n_remaining_blocks)]
-    gross_increments[-1] = gross
-    net_blocks = []
-    taxes_blocks_breakdown = []
-    for i, current_gross in enumerate(gross_increments):
-        previous_gross = gross_increments[i-1] if i > 0 else Decimal(0)
-        current_result = compute_net_pay(
-            current_gross,
-            n_pagues,
-            pagues_prorratejades,
-            retribucio_en_especie_ann,
-            grup_cotitzacio,
-            contract_type,
-            other_deductions,
-            fam,
-            region
-        )
-        prev_result = compute_net_pay(
-            previous_gross,
-            n_pagues,
-            pagues_prorratejades,
-            retribucio_en_especie_ann,
-            grup_cotitzacio,
-            contract_type,
-            other_deductions,
-            fam,
-            region
-        ) if i > 0 else {
-            "net_per_paga": Decimal(0),
-            "irpf_anual": Decimal(0),
-            "ss_contingencies_comunes_monthly": Decimal(0),
-            "t_des_monthly": Decimal(0),
-            "ss_training_monthly": Decimal(0),
-            "ss_mei_monthly": Decimal(0)
-        }
-        current_net_annual = current_result["net_per_paga"] * Decimal(n_pagues)
-        prev_net_annual = prev_result["net_per_paga"] * Decimal(n_pagues)
-        if i == 0:
-            net_blocks.append(float((current_net_annual - prev_net_annual)))
-        else:
-            net_blocks.append(float(current_net_annual - prev_net_annual))
-        taxes_increment = [
-            float(current_result["irpf_anual"] - prev_result["irpf_anual"]),
-            float(current_result["ss_contingencies_comunes_monthly"] * Decimal(n_pagues) - prev_result["ss_contingencies_comunes_monthly"] * Decimal(n_pagues)),
-            float(current_result["t_des_monthly"] * Decimal(n_pagues) - prev_result["t_des_monthly"] * Decimal(n_pagues)),
-            float(current_result["ss_training_monthly"] * Decimal(n_pagues) - prev_result["ss_training_monthly"] * Decimal(n_pagues)),
-            float(current_result["ss_mei_monthly"] * Decimal(n_pagues) - prev_result["ss_mei_monthly"] * Decimal(n_pagues))
-        ]
-        taxes_blocks_breakdown.append(taxes_increment)
-    # --- First plot: current implementation (absolute values) ---
-    n_bars = len(net_blocks)
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(18, 18))  # two plots vertically
-    bar_width = 0.95
-    bar_widths = [bar_width] * n_bars
-    bar_positions = [i for i in range(n_bars)]
-    tax_colors = ["#ff9999", "#66b3ff", "#6666ff", "#ffcc99", "#c2c2f0"]
-    # First plot: absolute values
-    for i in range(1, n_bars):
-        bottom = 0
-        ax1.bar(bar_positions[i], net_blocks[i], bar_widths[i], color="#99ff99", label="Sou net" if i==0 else "", edgecolor='black',linewidth=0.1)
-        bottom = net_blocks[i]
-        for j, tax in enumerate(taxes_blocks_breakdown[i]):
-            ax1.bar(bar_positions[i], tax, bar_widths[i], bottom=bottom, color=tax_colors[j],
-                    label=["IRPF", "SS: Contingències Comunes", "SS: Atur", "SS: Formació", "SS: MEI"][j] if i==0 else "", edgecolor='black',linewidth=0.1)
-            bottom += tax
-    ax1.set_xlabel("Blocs de sou brut anual", fontsize=34, labelpad=16)
-    ax1.set_ylabel("Euros", fontsize=34, labelpad=16)
-    ax1.set_title("Distribució del sou net i impostos", fontsize=38, fontweight='bold', pad=28)
-    # X-tick label management
-    xtick_labels = [f'{gross_increments[i]:,.0f}' for i in range(len(gross_increments))]
-    n_labels = len(xtick_labels)
-    max_labels = 50
-    if n_labels > max_labels:
-        step = (n_labels // max_labels) + 1
-        xtick_labels = [label if i % step == 0 or i == n_labels-1 else '' for i, label in enumerate(xtick_labels)]
-    ax1.set_xticks(bar_positions)
-    ax1.set_xticklabels(xtick_labels, rotation=30, ha="right", fontsize=12)
-    ax1.tick_params(axis='y', labelsize=20)
-    ax1.grid(axis="y", linestyle="--", alpha=0.5)
-    handles, labels = ax1.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    import textwrap
-    wrapped_labels = ["\n".join(textwrap.wrap(lbl, 22)) for lbl in by_label.keys()]
-    legend = ax1.legend(by_label.values(), wrapped_labels, loc="upper center", bbox_to_anchor=(0.5, -0.35), fontsize=22, ncol=2, frameon=False)
+    if gross_float <= 0:
+        raise ValueError("Gross salary must be positive to plot")
 
-    # --- Second plot: 100% stacked bar (percentages of each component per block) ---
-    # For each block, calculate the total and the percentage of each component
-    percent_blocks = []  # list of lists: [net%, irpf%, ss_comunes%, ss_atur%, ss_formacio%, ss_mei%]
-    for i in range(1, n_bars):
-        # For each block, get the current gross
-        current_gross = gross_increments[i] - gross_increments[i-1]
-        current_result = compute_net_pay(
-            gross_increments[i],
-            n_pagues,
-            pagues_prorratejades,
-            retribucio_en_especie_ann,
-            grup_cotitzacio,
-            contract_type,
-            other_deductions,
-            fam,
-            region
-        )
-        prev_result = compute_net_pay(
-            gross_increments[i-1],
-            n_pagues,
-            pagues_prorratejades,
-            retribucio_en_especie_ann,
-            grup_cotitzacio,
-            contract_type,
-            other_deductions,
-            fam,
-            region
-        )
-        net = float(current_result["net_per_paga"] * Decimal(n_pagues) )
-        irpf = float(current_result["irpf_anual"])
-        ss_comunes = float(current_result["ss_contingencies_comunes_monthly"] * Decimal(n_pagues) )
-        ss_atur = float(current_result["t_des_monthly"] * Decimal(n_pagues))
-        ss_formacio = float(current_result["ss_training_monthly"] * Decimal(n_pagues) )
-        ss_mei = float(current_result["ss_mei_monthly"] * Decimal(n_pagues) )
-        total = net + irpf + ss_comunes + ss_atur + ss_formacio + ss_mei
-        if total == 0:
-            percent_blocks.append([0, 0, 0, 0, 0, 0])
-        else:
-            percent_blocks.append([
-                100 * net / total,
-                100 * irpf / total,
-                100 * ss_comunes / total,
-                100 * ss_atur / total,
-                100 * ss_formacio / total,
-                100 * ss_mei / total
-            ])
-    # Prepare data for stacked bar
-    percent_blocks = np.array(percent_blocks)
-    bar_positions2 = bar_positions[1:]
-    labels2 = ["Sou net", "IRPF", "SS: Contingències Comunes", "SS: Atur", "SS: Formació", "SS: MEI"]
-    colors2 = ["#99ff99"] + tax_colors
-    bottom = np.zeros(len(percent_blocks))
-    for j in range(6):
-        ax2.bar(bar_positions2, percent_blocks[:, j], bar_width, bottom=bottom, color=colors2[j], label=labels2[j], edgecolor='black')
-        bottom += percent_blocks[:, j]
-    ax2.set_xlabel("Blocs de sou brut anual", fontsize=40, labelpad=16)
-    ax2.set_ylabel("Percentatge (%)", fontsize=38, labelpad=16)
-    ax2.set_title("Percentatge de cada concepte per bloc de sou", fontsize=38, fontweight='bold', pad=28)
-    # X-tick label management for second plot
-    xtick_labels2 = xtick_labels[1:]
-    ax2.set_xticks(bar_positions2)
-    ax2.set_xticklabels(xtick_labels2, rotation=30, ha="right", fontsize=12)
-    ax2.tick_params(axis='y', labelsize=20)
-    ax2.grid(axis="y", linestyle="--", alpha=0.5)
-    ax2.set_ylim(0, 100)
-    ax2.legend(loc="upper center", bbox_to_anchor=(0.5, -0.55), fontsize=22, ncol=2, frameon=False)
+    num_points = 200
+    xs = np.linspace(0.01, gross_float, num_points)
+    gross_points = [Decimal(x) for x in xs]
+    marginal_percents = []
+    irpf_totals = []
 
-    plt.tight_layout(pad=5.0)
+    for g in gross_points:
+        res = compute_net_pay(
+            g,
+            n_pagues,
+            pagues_prorratejades,
+            retribucio_en_especie_ann,
+            grup_cotitzacio,
+            contract_type,
+            other_deductions,
+            fam,
+            region
+        )
+        # prefer precomputed marginal percent from the calculation, otherwise derive it
+        if "marginal_irpf_percent" in res:
+            m = float(res["marginal_irpf_percent"])
+        elif "marginal_irpf_rate" in res:
+            m = float(res["marginal_irpf_rate"] * Decimal("100"))
+        else:
+            # fallback: approximate via small finite difference on IRPF (shouldn't happen often)
+            eps = Decimal("1.00")
+            r_plus = compute_net_pay(g + eps, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region)
+            irpf_diff = float((r_plus["irpf_anual"] - res["irpf_anual"]))
+            m = (irpf_diff / 1.0) / float(g) * 100.0 if g > 0 else 0.0
+        marginal_percents.append(m)
+        irpf_totals.append(float(res["irpf_anual"]))
+
+    # Build additional series: IRPF as percentage of gross, net annual
+    irpf_percents = []
+    net_annuals = []
+    for g, m, irpf in zip(gross_points, marginal_percents, irpf_totals):
+        gross_val = float(g)
+        irpf_val = float(irpf)
+        irpf_percents.append(100.0 * irpf_val / gross_val if gross_val > 0 else 0.0)
+        # compute net annual using compute_net_pay (some callers already provided net in previous loop,
+        # but we recompute to be safe and accurate)
+        res = compute_net_pay(Decimal(str(gross_val)), n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region)
+        net_annuals.append(float(res["net_per_paga"] * Decimal(n_pagues)))
+
+    # Create a vertical column of 4 plots (better for mobile): marginal %, IRPF %, IRPF €, net vs gross
+    plt_style = 'seaborn-v0_8-grid'
+    try:
+        plt.style.use(plt_style)
+    except Exception:
+        pass
+
+    fig, axes = plt.subplots(4, 1, figsize=(8, 20), sharex=True)
+    ax_marginal, ax_irpf_percent, ax_irpf_amount, ax_net_vs_gross = axes
+
+    xvals = [float(x) for x in gross_points]
+
+    # Choose nice tick spacing for x axis (max ~6 ticks)
+    try:
+        xticks = np.linspace(min(xvals), max(xvals), num=6)
+    except Exception:
+        xticks = None
+
+    # --- Marginal IRPF (%) ---
+    ax_marginal.step(xvals, marginal_percents, where='post', color='#d62728', linewidth=2, label='Marginal IRPF (%)')
+    ax_marginal.fill_between(xvals, marginal_percents, color='#d62728', alpha=0.08)
+    ax_marginal.set_ylabel('Marginal IRPF (%)', fontsize=12)
+    ax_marginal.set_title('Marginal IRPF (%)', fontsize=14, fontweight='bold')
+    ax_marginal.grid(alpha=0.4)
+    ax_marginal.legend(loc='upper right', fontsize=10)
+    ax_marginal.tick_params(axis='y', labelsize=10)
+
+    # --- Total IRPF (%) ---
+    ax_irpf_percent.plot(xvals, irpf_percents, color='#ff7f0e', linewidth=2, marker='o', markersize=4, label='IRPF (% of gross)')
+    ax_irpf_percent.set_ylabel('IRPF (% of gross)', fontsize=12)
+    ax_irpf_percent.set_title('IRPF as % of gross', fontsize=14, fontweight='bold')
+    ax_irpf_percent.grid(alpha=0.4)
+    ax_irpf_percent.legend(loc='upper left', fontsize=10)
+    ax_irpf_percent.tick_params(axis='y', labelsize=10)
+
+    # --- Total IRPF amount ---
+    ax_irpf_amount.plot(xvals, irpf_totals, color='#1f77b4', linewidth=2, label='IRPF anual (€)')
+    ax_irpf_amount.fill_between(xvals, irpf_totals, color='#1f77b4', alpha=0.06)
+    ax_irpf_amount.set_ylabel('IRPF anual (€)', fontsize=12)
+    ax_irpf_amount.set_title('IRPF anual (€)', fontsize=14, fontweight='bold')
+    ax_irpf_amount.grid(alpha=0.4)
+    ax_irpf_amount.legend(loc='upper left', fontsize=10)
+    ax_irpf_amount.tick_params(axis='y', labelsize=10)
+
+    # --- Net vs Gross ---
+    ax_net_vs_gross.plot(xvals, net_annuals, color='#2ca02c', linewidth=2, label='Sou net anual (€)')
+    ax_net_vs_gross.plot(xvals, xvals, color='#7f7f7f', linestyle='--', linewidth=1, label='Sou brut anual (€)')
+    ax_net_vs_gross.set_ylabel('Euros (€)', fontsize=12)
+    ax_net_vs_gross.set_title('Sou net anual vs Sou brut anual', fontsize=14, fontweight='bold')
+    ax_net_vs_gross.grid(alpha=0.4)
+    ax_net_vs_gross.legend(loc='upper left', fontsize=10)
+    ax_net_vs_gross.tick_params(axis='y', labelsize=10)
+
+    # Common x-axis label and formatting
+    if xticks is not None:
+        for ax in axes:
+            ax.set_xticks(xticks)
+    for ax in axes:
+        ax.set_xlabel('Sou brut anual (€)', fontsize=12)
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{int(x):,}"))
+        ax.tick_params(axis='x', labelrotation=30, labelsize=10)
+
+    plt.tight_layout(pad=2.5)
     if return_fig:
         return fig
     else:

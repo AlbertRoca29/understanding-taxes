@@ -32,10 +32,10 @@ class FamilySituation:
     def minimo_personal_familiar(self) -> Decimal:
         # Mínimo del contribuyente
         minimo = MINIMO_CONTRIBUYENTE
-        if self.age >= 65:
-            minimo += MINIMO_65
         if self.age >= 75:
             minimo += MINIMO_75
+        if self.age >= 65:
+            minimo += MINIMO_65
 
         # Mínimo por descendientes < 25 años o con discapacidad
         mindesg = Decimal("0.00")
@@ -118,25 +118,16 @@ def calcular_tipo_retencion(cuota, retrib, presviv, minopago, ceumeli, contrato,
             minopago = MINORACION_VIVIENDA_MAX
     else:
         minopago = Decimal("0.00")
-    # Tratamiento Ceuta/Melilla/La Palma
-    if ceumeli:
-        diferencia_positiva = cuota * Decimal("0.40") - minopago
-    else:
-        diferencia_positiva = cuota - minopago
+    # Diferencia positiva (sin tratamientos especiales de Ceuta/Melilla/La Palma por ahora)
+    diferencia_positiva = cuota - minopago
     if diferencia_positiva < 0:
         diferencia_positiva = Decimal("0.00")
     tipo = truncar((diferencia_positiva / retrib) * Decimal("100")) if retrib > 0 else Decimal("0.00")
     # Límites mínimos y máximos
-    if ceumeli:
-        if contrato == "ESPECIAL" and tipo < Decimal("6.00"):
-            tipo = Decimal("6.00")
-        elif contrato == "INFERIORAÑO" and tipo < Decimal("0.80"):
-            tipo = Decimal("0.80")
-    else:
-        if contrato == "ESPECIAL" and tipo < Decimal("15.00"):
-            tipo = Decimal("15.00")
-        elif contrato == "INFERIORAÑO" and tipo < Decimal("2.00"):
-            tipo = Decimal("2.00")
+    if contrato == "ESPECIAL" and tipo < Decimal("15.00"):
+        tipo = Decimal("15.00")
+    elif contrato == "INFERIORAÑO" and tipo < Decimal("2.00"):
+        tipo = Decimal("2.00")
     if tipo > limite_max:
         tipo = limite_max
     return tipo
@@ -212,6 +203,29 @@ class IRPFScale:
             tax += taxable * rate
         return tax
 
+    def rate_at(self, base: Decimal) -> Decimal:
+        """
+        Return the marginal tax rate (as a Decimal fraction, e.g. 0.185) that applies to the next
+        infinitesimal euro above `base`.
+
+        Convention: the marginal rate is the rate of the bracket that would apply to base + epsilon.
+        This means that if `base` equals a bracket upper bound, the next bracket's rate is returned.
+        """
+        b = Decimal(base)
+        if b <= Decimal("0"):
+            return Decimal("0.00")
+        for low, high, rate in self.brackets:
+            low = Decimal(low)
+            high = Decimal(high) if high is not None else None
+            # If high is None (last bracket) or base is strictly less than high, then this bracket
+            # contains the next infinitesimal above `base` provided base >= low.
+            if high is None or b < high:
+                if b >= low:
+                    return Decimal(rate)
+                else:
+                    return Decimal("0.00")
+        return Decimal("0.00")
+
     @classmethod
     def combined_scale(cls, regional_scale, state_scale):
         breakpoints = set()
@@ -262,3 +276,49 @@ def compute_reduction_by_work(rendimiento_neto: Decimal) -> Decimal:
         val = REDUCTION_WORK["base3"] - (REDUCTION_WORK["coef3"] * (rn - REDUCTION_WORK["upper2"]))
         return val.quantize(Decimal("0.01"))
     return Decimal("0.00")
+
+
+def calcular_marginal_irpf(base: Decimal, minperfa: Decimal, anualidades: Decimal = Decimal("0.00"), escala: IRPFScale = None) -> Decimal:
+    """
+    Compute the marginal IRPF rate (as a Decimal fraction, e.g. 0.185) for a given taxable base.
+
+    Logic mirrors `calcular_cuota_retencion` but uses derivative rules:
+    - tax_on_base is piecewise-linear so derivative is the bracket rate where the marginal euro falls
+    - anualidades: the anualidades part is constant w.r.t. the taxable base, so the marginal rate
+      is taken at (base - anualidades) when base > anualidades; if base <= anualidades marginal = 0
+    - cuota2 (the subtraction based on `minperfa`) is constant wrt base and does not affect the derivative
+    - if the resulting cuota would be zero (cuota1 <= cuota2) the marginal is zero
+    """
+    if escala is None:
+        escala = IRPFScale.combined_scale(IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL)
+
+    def escala_retencion(valor: Decimal) -> Decimal:
+        return escala.tax_on_base(valor)
+
+    # compute cuota1 same as in calcular_cuota_retencion
+    if anualidades > 0 and (base - anualidades) > 0:
+        base1 = base - anualidades
+        cuota1 = escala_retencion(base1) + escala_retencion(anualidades)
+    else:
+        cuota1 = escala_retencion(base)
+
+    # compute cuota2 (constant w.r.t. base)
+    if anualidades > 0 and (base - anualidades) > 0:
+        cuota2 = escala_retencion(minperfa + Decimal("1980.00"))
+    else:
+        cuota2 = escala_retencion(minperfa)
+
+    # if final cuota would be zero, marginal is zero
+    if cuota1 <= cuota2:
+        return Decimal("0.00")
+
+    # determine the taxable part whose marginal determines the derivative
+    if anualidades > 0 and (base - anualidades) > 0:
+        taxable_part = base - anualidades
+    else:
+        taxable_part = base
+
+    if taxable_part <= 0:
+        return Decimal("0.00")
+
+    return escala.rate_at(taxable_part)

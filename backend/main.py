@@ -6,7 +6,7 @@ from decimal import Decimal
 import base64
 import io
 from utils import FamilySituation, IRPFScale, calculate_base_imposable_irpf, apply_base_limits, round_euro, compute_reduction_by_work
-from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, SS_BASE_MAX_DAILY, DEFAULT_SS_RATES, GASTOS_DEDUCIDOS
+from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, SS_BASE_MAX_DAILY, DEFAULT_SS_RATES, GASTOS_DEDUCIDOS, REDUCTION_WORK
 import viz_utils
 import matplotlib.pyplot as plt
 
@@ -57,7 +57,7 @@ def fig_to_base64(fig):
     plt.close(fig)
     return img_base64
 
-from utils import calcular_gastos_deducibles, calcular_cuota_retencion, redondear1, truncar
+from utils import calcular_gastos_deducibles, calcular_cuota_retencion, redondear1, truncar, calcular_marginal_irpf, IRPFScale
 
 def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region):
     # fam: FamilySituation, region: str
@@ -100,6 +100,56 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
 
     # Calcular cuota oficial con escala combinada
     irpf_anual = calcular_cuota_retencion(base_imponible, minimo_pf)
+    # Marginal IRPF (use chain rule: d(cuota)/d(base) * d(base)/d(gross))
+    # 1) bracket marginal rate
+    escala = IRPFScale.combined_scale(IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL)
+    # determine taxable part for marginal-rate lookup (handle anualidades same as calcular_cuota_retencion)
+    if Decimal("0") < Decimal("0.00"):
+        pass
+    # anualidades currently not modelled in the UI, assume zero
+    anualidades = Decimal("0.00")
+
+    if anualidades > 0 and (base_imponible - anualidades) > 0:
+        taxable_for_rate = base_imponible - anualidades
+    else:
+        taxable_for_rate = base_imponible
+
+    r_bracket = escala.rate_at(taxable_for_rate)
+
+    # 2) derivative of employee SS w.r.t gross (approx). If SS base is proportional to gross_including_benefits,
+    # d(cotizaciones_anual)/d(gross_including_benefits) = sum of worker rates
+    ss_monthly_rate = DEFAULT_SS_RATES["contingencies_common_worker"] + (
+        DEFAULT_SS_RATES["unemployment_worker_indefinite"] if contract_type == "indefinite" else DEFAULT_SS_RATES["unemployment_worker_temporary"]
+    ) + DEFAULT_SS_RATES["training_worker"] + DEFAULT_SS_RATES["mei_worker"]
+    d_ss = ss_monthly_rate
+
+    # 3) derivative of the reduction-by-work w.r.t rendimiento_neto (RNT)
+    rn = base_imponible_trabajo
+    r_red = Decimal("0.00")
+    if rn <= REDUCTION_WORK["upper1"]:
+        r_red = Decimal("0.00")
+    elif rn <= REDUCTION_WORK["upper2"]:
+        r_red = -REDUCTION_WORK["coef2"]
+    elif rn <= REDUCTION_WORK["upper3"]:
+        r_red = -REDUCTION_WORK["coef3"]
+    else:
+        r_red = Decimal("0.00")
+
+    # d(RNT)/d(gross) approx = 1 - d_ss (ignoring small effects from otrosgastos clipping)
+    d_rnt_d_gross = Decimal("1.00") - d_ss
+
+    # d(reduction)/d(gross) = r_red * d_rnt_d_gross
+    # d(base_imponible)/d(gross) = d_rnt_d_gross - d(reduction)/d(gross) = d_rnt_d_gross * (1 - r_red)
+    d_base_d_gross = d_rnt_d_gross * (Decimal("1.00") - r_red)
+
+    # If final cuota would be zero, marginal is zero
+    cuota_test = calcular_cuota_retencion(base_imponible, minimo_pf)
+    if cuota_test <= Decimal("0.00"):
+        marginal_irpf = Decimal("0.00")
+    else:
+        marginal_irpf = r_bracket * d_base_d_gross
+
+    marginal_irpf_percent = truncar(marginal_irpf * Decimal("100"))
 
     irpf_per_paga = irpf_anual / Decimal(n_pagues)
     gross_per_paga = gross_including_benefits / Decimal(n_pagues)
@@ -128,6 +178,8 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "gross_per_paga": redondear1(gross_per_paga),
         "net_per_paga": redondear1(net_per_paga),
         "net_monthly_equivalent": redondear1(net_monthly_equivalent),
+        "marginal_irpf_rate": marginal_irpf,
+        "marginal_irpf_percent": marginal_irpf_percent,
     }
 
 @app.post("/api/calculate")
@@ -187,6 +239,8 @@ async def calculate_salary(data: SalaryRequest):
         "sou_net_mensual_equivalent": float(round_euro(calc["net_monthly_equivalent"])),
         "irpf_anual": float(round_euro(calc["irpf_anual"])),
         "cotitzacions_anuals": float(round_euro(calc["cotitzacions_anuals"])),
+        "marginal_irpf_rate": float(calc.get("marginal_irpf_rate", Decimal("0.00"))),
+        "marginal_irpf_percent": float(calc.get("marginal_irpf_percent", Decimal("0.00"))),
         "plots": figs
     }
 
