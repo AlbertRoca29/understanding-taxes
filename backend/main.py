@@ -125,7 +125,8 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         + DEFAULT_SS_RATES["training_worker"]
         + DEFAULT_SS_RATES["mei_worker"]
     )
-    d_rnt_d_gross = Decimal("1.00") - ss_total_rate
+    ss_is_capped = (gross_including_benefits / 12 >= SS_BASE_MAX_MONTHLY)
+    d_rnt_d_gross = Decimal("1.00") if ss_is_capped else (Decimal("1.00") - ss_total_rate)
     # derivative of reduction-by-work w.r.t. rendiment_net_treball
     rn = rendiment_net_treball
     if rn <= REDUCTION_WORK["upper1"]:
