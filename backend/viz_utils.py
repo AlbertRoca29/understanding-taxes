@@ -1,6 +1,38 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from decimal import Decimal
 import numpy as np
+
+# ── Brand palette ────────────────────────────────────────────────────────────
+_RED      = "#e2231a"
+_RED_DARK = "#b81b13"
+_GREEN    = "#52b788"
+_ORANGE   = "#e67e22"
+_BLUE     = "#3498db"
+_PURPLE   = "#9b59b6"
+_TEAL     = "#1abc9c"
+_GRAY     = "#adb5bd"
+
+_PIE_TAXES_COLORS = [_RED, _ORANGE, _BLUE, _PURPLE, _TEAL]
+_PIE_MAIN_COLORS  = [_GREEN, _RED]
+
+def _apply_style():
+    mpl.rcParams.update({
+        "figure.facecolor":  "white",
+        "axes.facecolor":    "white",
+        "axes.edgecolor":    "#e0e0e0",
+        "axes.grid":         True,
+        "grid.color":        "#f0f0f0",
+        "grid.linewidth":    1.0,
+        "axes.spines.top":   False,
+        "axes.spines.right": False,
+        "font.family":       "sans-serif",
+        "font.sans-serif":   ["Inter", "Helvetica Neue", "Arial", "DejaVu Sans"],
+        "text.color":        "#1a1a1a",
+        "axes.labelcolor":   "#444444",
+        "xtick.color":       "#666666",
+        "ytick.color":       "#666666",
+    })
 
 def plot_increment_difference_pie(prev_calc, new_calc, return_fig=False):
     """
@@ -49,44 +81,75 @@ def plot_net_pay_and_taxes(
     ss_mei_annual: Decimal,
     return_fig: bool = False
 ):
-    fig, axes = plt.subplots(2, 1, figsize=(7, 12))  # Stack vertically, more mobile friendly
+    _apply_style()
+    fig, axes = plt.subplots(2, 1, figsize=(6, 10), facecolor="white")
     total_taxes_annual = cotitzacions_anuals + irpf_anual
     net_annual = net_per_paga * Decimal(n_pagues)
-    net_vs_taxes_labels = ["Sou Net Anual", "Impostos i Cotitzacions Anuals"]
-    net_vs_taxes_values = [float(net_annual), float(total_taxes_annual)]
-    colors1 = ["#99ff99", "#ff6666"]
+
     def autopct_format(pct):
-        return ('%1.1f%%' % pct) if pct > 3 else ''
-    wedges1, texts1, autotexts1 = axes[0].pie(
-        net_vs_taxes_values, autopct=autopct_format, startangle=90, colors=colors1,
-        textprops={'fontsize': 18, 'color': 'black'}, pctdistance=0.8, labeldistance=1.15)
-    axes[0].set_title("Distribució Sou Net vs Impostos Anuals", fontsize=22, fontweight='bold', pad=20)
-    axes[0].legend(net_vs_taxes_labels, loc="upper center", bbox_to_anchor=(0.5, -0.08), fontsize=16, ncol=2)
-    for text in texts1 + autotexts1:
-        text.set_fontsize(18)
+        return (f"{pct:.1f}%") if pct > 3 else ""
+
+    # ── Chart 1: Net vs Total taxes ───────────────────────────────────────────
+    net_vs_taxes_labels = ["Sou Net Anual", "Impostos i Cotitzacions"]
+    net_vs_taxes_values = [float(net_annual), float(total_taxes_annual)]
+    wedges1, _, autotexts1 = axes[0].pie(
+        net_vs_taxes_values,
+        autopct=autopct_format,
+        startangle=90,
+        colors=_PIE_MAIN_COLORS,
+        pctdistance=0.72,
+        wedgeprops={"linewidth": 1.5, "edgecolor": "white"},
+    )
+    for at in autotexts1:
+        at.set_fontsize(13)
+        at.set_color("white")
+        at.set_fontweight("bold")
+    axes[0].set_title(
+        "Sou Net vs Impostos Anuals", fontsize=14, fontweight="bold",
+        color="#1a1a1a", pad=14,
+    )
+    axes[0].legend(
+        net_vs_taxes_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05),
+        fontsize=11, ncol=2, frameon=False,
+    )
+
+    # ── Chart 2: Taxes breakdown ──────────────────────────────────────────────
     taxes_breakdown_labels = [
         "IRPF",
         "SS: Contingències Comunes",
         "SS: Atur",
         "SS: Formació Professional",
-        "SS: MEI"
+        "SS: MEI",
     ]
     taxes_breakdown_values = [
         float(irpf_anual),
         float(ss_contingencies_comunes_annual),
         float(t_des_annual),
         float(ss_training_annual),
-        float(ss_mei_annual)
+        float(ss_mei_annual),
     ]
-    colors2 = ["#ff9999", "#66b3ff", "#6666ff", "#ffcc99", "#c2c2f0"]
-    wedges2, texts2, autotexts2 = axes[1].pie(
-        taxes_breakdown_values, autopct=autopct_format, startangle=90, colors=colors2,
-        textprops={'fontsize': 18, 'color': 'black'}, pctdistance=0.8, labeldistance=1.15)
-    axes[1].set_title("Distribució dels impostos i cotitzacions anuals", fontsize=22, fontweight='bold', pad=20)
-    axes[1].legend(taxes_breakdown_labels, loc="upper center", bbox_to_anchor=(0.5, -0.08), fontsize=16, ncol=2)
-    for text in texts2 + autotexts2:
-        text.set_fontsize(18)
-    plt.tight_layout(pad=4.0)
+    wedges2, _, autotexts2 = axes[1].pie(
+        taxes_breakdown_values,
+        autopct=autopct_format,
+        startangle=90,
+        colors=_PIE_TAXES_COLORS,
+        pctdistance=0.72,
+        wedgeprops={"linewidth": 1.5, "edgecolor": "white"},
+    )
+    for at in autotexts2:
+        at.set_fontsize(12)
+        at.set_color("white")
+        at.set_fontweight("bold")
+    axes[1].set_title(
+        "Desglossat d'Impostos i Cotitzacions", fontsize=14, fontweight="bold",
+        color="#1a1a1a", pad=14,
+    )
+    axes[1].legend(
+        taxes_breakdown_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05),
+        fontsize=10, ncol=2, frameon=False,
+    )
+
+    plt.tight_layout(pad=3.0)
     if return_fig:
         return fig
     else:
@@ -159,67 +222,61 @@ def plot_salary_blocks(
         res = compute_net_pay(Decimal(str(gross_val)), n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region)
         net_annuals.append(float(res["net_per_paga"] * Decimal(n_pagues)))
 
-    # Create a vertical column of 4 plots (better for mobile): marginal %, IRPF %, IRPF €, net vs gross
-    plt_style = 'seaborn-v0_8-grid'
-    try:
-        plt.style.use(plt_style)
-    except Exception:
-        pass
-
-    fig, axes = plt.subplots(4, 1, figsize=(8, 20), sharex=True)
+    _apply_style()
+    fig, axes = plt.subplots(4, 1, figsize=(7, 18), sharex=True, facecolor="white")
     ax_marginal, ax_irpf_percent, ax_irpf_amount, ax_net_vs_gross = axes
 
     xvals = [float(x) for x in gross_points]
 
-    # Choose nice tick spacing for x axis (max ~6 ticks)
     try:
         xticks = np.linspace(min(xvals), max(xvals), num=6)
     except Exception:
         xticks = None
 
+    _lw = 2.2
+
     # --- Marginal IRPF (%) ---
-    ax_marginal.step(xvals, marginal_percents, where='post', color='#d62728', linewidth=2, label='Marginal IRPF (%)')
-    ax_marginal.fill_between(xvals, marginal_percents, color='#d62728', alpha=0.08)
-    ax_marginal.set_ylabel('Marginal IRPF (%)', fontsize=12)
-    ax_marginal.set_title('Marginal IRPF (%)', fontsize=14, fontweight='bold')
-    ax_marginal.grid(alpha=0.4)
-    ax_marginal.legend(loc='upper right', fontsize=10)
-    ax_marginal.tick_params(axis='y', labelsize=10)
+    ax_marginal.step(xvals, marginal_percents, where="post", color=_RED, linewidth=_lw)
+    ax_marginal.fill_between(xvals, marginal_percents, step="post", color=_RED, alpha=0.10)
+    ax_marginal.set_ylabel("Marginal IRPF (%)", fontsize=11)
+    ax_marginal.set_title("Tipus Marginal IRPF (%)", fontsize=13, fontweight="bold", color="#1a1a1a", pad=10)
 
     # --- Total IRPF (%) ---
-    ax_irpf_percent.plot(xvals, irpf_percents, color='#ff7f0e', linewidth=2, marker='o', markersize=4, label='IRPF (% of gross)')
-    ax_irpf_percent.set_ylabel('IRPF (% of gross)', fontsize=12)
-    ax_irpf_percent.set_title('IRPF as % of gross', fontsize=14, fontweight='bold')
-    ax_irpf_percent.grid(alpha=0.4)
-    ax_irpf_percent.legend(loc='upper left', fontsize=10)
-    ax_irpf_percent.tick_params(axis='y', labelsize=10)
+    ax_irpf_percent.plot(xvals, irpf_percents, color=_ORANGE, linewidth=_lw)
+    ax_irpf_percent.fill_between(xvals, irpf_percents, color=_ORANGE, alpha=0.10)
+    ax_irpf_percent.set_ylabel("IRPF efectiu (%)", fontsize=11)
+    ax_irpf_percent.set_title("IRPF Efectiu sobre el Brut (%)", fontsize=13, fontweight="bold", color="#1a1a1a", pad=10)
 
     # --- Total IRPF amount ---
-    ax_irpf_amount.plot(xvals, irpf_totals, color='#1f77b4', linewidth=2, label='IRPF anual (€)')
-    ax_irpf_amount.fill_between(xvals, irpf_totals, color='#1f77b4', alpha=0.06)
-    ax_irpf_amount.set_ylabel('IRPF anual (€)', fontsize=12)
-    ax_irpf_amount.set_title('IRPF anual (€)', fontsize=14, fontweight='bold')
-    ax_irpf_amount.grid(alpha=0.4)
-    ax_irpf_amount.legend(loc='upper left', fontsize=10)
-    ax_irpf_amount.tick_params(axis='y', labelsize=10)
+    ax_irpf_amount.plot(xvals, irpf_totals, color=_BLUE, linewidth=_lw)
+    ax_irpf_amount.fill_between(xvals, irpf_totals, color=_BLUE, alpha=0.08)
+    ax_irpf_amount.set_ylabel("IRPF anual (€)", fontsize=11)
+    ax_irpf_amount.set_title("IRPF Anual (€)", fontsize=13, fontweight="bold", color="#1a1a1a", pad=10)
 
     # --- Net vs Gross ---
-    ax_net_vs_gross.plot(xvals, net_annuals, color='#2ca02c', linewidth=2, label='Sou net anual (€)')
-    ax_net_vs_gross.plot(xvals, xvals, color='#7f7f7f', linestyle='--', linewidth=1, label='Sou brut anual (€)')
-    ax_net_vs_gross.set_ylabel('Euros (€)', fontsize=12)
-    ax_net_vs_gross.set_title('Sou net anual vs Sou brut anual', fontsize=14, fontweight='bold')
-    ax_net_vs_gross.grid(alpha=0.4)
-    ax_net_vs_gross.legend(loc='upper left', fontsize=10)
-    ax_net_vs_gross.tick_params(axis='y', labelsize=10)
+    ax_net_vs_gross.plot(xvals, net_annuals, color=_GREEN, linewidth=_lw, label="Sou net anual")
+    ax_net_vs_gross.plot(xvals, xvals, color=_GRAY, linestyle="--", linewidth=1.4, label="Sou brut anual")
+    ax_net_vs_gross.fill_between(xvals, net_annuals, xvals, color=_GRAY, alpha=0.07)
+    ax_net_vs_gross.set_ylabel("Euros (€)", fontsize=11)
+    ax_net_vs_gross.set_title("Sou Net vs Sou Brut Anual", fontsize=13, fontweight="bold", color="#1a1a1a", pad=10)
+    ax_net_vs_gross.legend(loc="upper left", fontsize=10, frameon=False)
 
-    # Common x-axis label and formatting
+    euro_fmt = plt.FuncFormatter(lambda x, _: f"{int(x):,} €".replace(",", "."))
+    pct_fmt  = plt.FuncFormatter(lambda x, _: f"{x:.0f}%")
+
+    ax_marginal.yaxis.set_major_formatter(pct_fmt)
+    ax_irpf_percent.yaxis.set_major_formatter(pct_fmt)
+    ax_irpf_amount.yaxis.set_major_formatter(euro_fmt)
+    ax_net_vs_gross.yaxis.set_major_formatter(euro_fmt)
+
     if xticks is not None:
         for ax in axes:
             ax.set_xticks(xticks)
     for ax in axes:
-        ax.set_xlabel('Sou brut anual (€)', fontsize=12)
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, pos: f"{int(x):,}"))
-        ax.tick_params(axis='x', labelrotation=30, labelsize=10)
+        ax.set_xlabel("Sou brut anual (€)", fontsize=11)
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x):,}"))
+        ax.tick_params(axis="x", labelrotation=20, labelsize=9)
+        ax.tick_params(axis="y", labelsize=9)
 
     plt.tight_layout(pad=2.5)
     if return_fig:

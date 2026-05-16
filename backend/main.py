@@ -51,7 +51,7 @@ class IncrementRequest(BaseModel):
 
 def fig_to_base64(fig):
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches='tight')
+    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white", dpi=150)
     buf.seek(0)
     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
     plt.close(fig)
