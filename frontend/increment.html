@@ -328,8 +328,13 @@
             resultEl.innerHTML = `
 <div style="font-size:0.95em;text-align:left;line-height:1.75;background:#f8f8f8;border-radius:12px;padding:20px 18px;border:1px solid #eee">
   <div style="font-weight:700;color:#e2231a;margin-bottom:10px;font-size:0.95em;letter-spacing:0.04em;font-family:Inter,sans-serif">RESUM DE L'INCREMENT</div>
-  <b>Increment net anual:</b> ${fmt(result.increment_annual_net)}<br>
-  <b>Increment net mensual equivalent:</b> ${fmt(result.increment_monthly_net)}
+  <span style="color:#888">Increment brut anual:</span> +${fmt(result.increment_annual_brut)}<br>
+  <span style="color:#888">− SS addicional:</span> −${fmt(result.increment_annual_ss)}<br>
+  <span style="color:#888">− IRPF addicional:</span> −${fmt(result.increment_annual_irpf)}<br>
+  <b>Increment net anual: ${fmt(result.increment_annual_net)}</b>
+  <div style="border-top:1px solid #e0e4ea;margin:8px 0"></div>
+  <b style="font-size:1.08em">Increment net per paga (${nPagues}): ${fmt(result.increment_annual_net / nPagues)}</b><br>
+  <span style="color:#888;font-size:0.88em">Equivalent mensual (÷12): ${fmt(result.increment_monthly_net)}</span>
 </div>
 ${result.increment_pie ? `<div style="margin-top:18px"><img src="data:image/png;base64,${result.increment_pie}" style="max-width:100%;border-radius:10px"></div>` : ''}`;
 

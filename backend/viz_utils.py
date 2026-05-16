@@ -61,7 +61,9 @@ def plot_increment_difference_pie(prev_calc, new_calc, return_fig=False):
         t_des_annual,
         ss_training_annual,
         ss_mei_annual,
-        return_fig=True
+        return_fig=True,
+        title_main="Increment Net vs Impostos Addicionals",
+        title_breakdown="Desglossat Impostos Addicionals per l'Increment",
     )
     if return_fig:
         return fig
@@ -79,7 +81,9 @@ def plot_net_pay_and_taxes(
     t_des_annual: Decimal,
     ss_training_annual: Decimal,
     ss_mei_annual: Decimal,
-    return_fig: bool = False
+    return_fig: bool = False,
+    title_main: str = "Sou Net vs Impostos Anuals",
+    title_breakdown: str = "Desglossat d'Impostos i Cotitzacions",
 ):
     _apply_style()
     fig, axes = plt.subplots(2, 1, figsize=(6, 10), facecolor="white")
@@ -105,7 +109,7 @@ def plot_net_pay_and_taxes(
         at.set_color("white")
         at.set_fontweight("bold")
     axes[0].set_title(
-        "Sou Net vs Impostos Anuals", fontsize=14, fontweight="bold",
+        title_main, fontsize=14, fontweight="bold",
         color="#1a1a1a", pad=14,
     )
     axes[0].legend(
@@ -141,7 +145,7 @@ def plot_net_pay_and_taxes(
         at.set_color("white")
         at.set_fontweight("bold")
     axes[1].set_title(
-        "Desglossat d'Impostos i Cotitzacions", fontsize=14, fontweight="bold",
+        title_breakdown, fontsize=14, fontweight="bold",
         color="#1a1a1a", pad=14,
     )
     axes[1].legend(

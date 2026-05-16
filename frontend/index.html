@@ -611,8 +611,8 @@ Brut anual: ${fmt(result.rendiment_brut_treball)}<br>
 
 <div style="border-top:1px solid #e0e4ea;margin:10px 0"></div>
 <div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">PER PAGA (${npagues})</div>
-${fmt(result.gross_per_paga)} − <span style="color:#888">SS ${fmt(result.ss_per_paga)}</span> − <span style="color:#888">IRPF ${fmt(result.irpf_per_paga)}</span> = <b>${fmt(result.sou_net_per_paga)}</b><br>
-<b>Net mensual equivalent: ${fmt(result.sou_net_mensual_equivalent)}</b>
+${fmt(result.gross_per_paga)} − <span style="color:#888">SS ${fmt(result.ss_per_paga)}</span> − <span style="color:#888">IRPF ${fmt(result.irpf_per_paga)}</span> = <b style="font-size:1.08em">${fmt(result.sou_net_per_paga)}</b><br>
+<span style="color:#888;font-size:0.88em">Equivalent mensual (÷12): ${fmt(result.sou_net_mensual_equivalent)}</span>
 </div>`;
 
             if (result.plots && Array.isArray(result.plots)) {

@@ -296,13 +296,20 @@ async def calculate_increment(data: IncrementRequest):
     new = perform_calculation(
         Decimal(str(data.new_gross)), data.n_pagues, data.pagues_prorratejades, Decimal(str(data.retribucio_en_especie_ann)),
         data.grup_cotitzacio, data.contract_type, Decimal(str(data.other_deductions)), fam, region)
-    increment_annual_net = new["net_per_paga"] * Decimal(data.n_pagues) - prev["net_per_paga"] * Decimal(data.n_pagues)
-    increment_monthly_net = new["net_monthly_equivalent"] - prev["net_monthly_equivalent"]
+    n = Decimal(data.n_pagues)
+    increment_annual_net  = (new["net_per_paga"]       - prev["net_per_paga"])       * n
+    increment_monthly_net =  new["net_monthly_equivalent"] - prev["net_monthly_equivalent"]
+    increment_annual_ss   = (new["cotitzacions_anuals"] - prev["cotitzacions_anuals"])
+    increment_annual_irpf = (new["cuota_irpf_anual"]   - prev["cuota_irpf_anual"])
+    increment_annual_brut = (new["gross_including_benefits"] - prev["gross_including_benefits"])
     # Pie chart for the difference
     fig = viz_utils.plot_increment_difference_pie(prev, new, return_fig=True)
     pie_base64 = fig_to_base64(fig)
     return {
-        "increment_annual_net": float(round_euro(increment_annual_net)),
+        "increment_annual_net":  float(round_euro(increment_annual_net)),
         "increment_monthly_net": float(round_euro(increment_monthly_net)),
+        "increment_annual_brut": float(round_euro(increment_annual_brut)),
+        "increment_annual_ss":   float(round_euro(increment_annual_ss)),
+        "increment_annual_irpf": float(round_euro(increment_annual_irpf)),
         "increment_pie": pie_base64
     }
