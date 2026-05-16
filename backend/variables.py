@@ -2,14 +2,15 @@ from decimal import Decimal
 
 # Seguretat Social 2026
 SS_BASE_MAX_MONTHLY = Decimal("4909.50")
-SS_BASE_MAX_DAILY = Decimal("163.65")
 SS_BASE_MIN_BY_GROUP = {
-    "Sou mensual; Adulta; Enginyeres i llicenciades universitàries": Decimal("1929.00"),
-    "Sou mensual; Adulta; Enginyeres tècniques, perites i ajudants titulades": Decimal("1599.60"),
-    "Sou mensual; Adulta; Caps administratives i de taller": Decimal("1391.70"),
-    "Sou mensual; Adulta; altres": Decimal("1381.20"),
-    "Base diaria; Adulta": Decimal("46.04"),
-    "Menor d'edat": Decimal("46.04"),
+    "Grup 1 – Enginyers/Llicenciats/Alta direcció": Decimal("1929.00"),
+    "Grup 2 – Enginyers tècnics/Tècnics titulats":  Decimal("1599.60"),
+    "Grup 3 – Caps administratius i de taller":     Decimal("1391.70"),
+    "Grup 4 – Ajudants no titulats":                Decimal("1381.20"),
+    "Grup 5 – Oficials administratius":             Decimal("1381.20"),
+    "Grup 6 – Subalterns":                          Decimal("1381.20"),
+    "Grup 7 – Auxiliars administratius":            Decimal("1381.20"),
+    "Grups 8-11 – Oficials, especialistes i peons": Decimal("1381.20"),
 }
 DEFAULT_SS_RATES = {
     "contingencies_common_worker": Decimal("0.0470"),
@@ -106,6 +107,13 @@ TIPOS_FIJOS = {
 # Límite máximo de retención para bajos ingresos (art. 85.3)
 MAX_WITHHOLDING_PERCENT_FOR_LIMITED = Decimal("0.43")
 MAX_WITHHOLDING_LIMIT_BASE = Decimal("35200.00")
+
+# Offset sobre mínimo personal-familiar en cálculos con anualidades (art. 85 RIRPF)
+ANUALIDADES_MINPERFA_EXTRA = Decimal("1980.00")
+
+# Tipos mínimos de retención según tipo de contrato (art. 86.2 RIRPF) — en porcentaje (%)
+RETENCION_MIN_CONTRATO_ESPECIAL = Decimal("15.00")
+RETENCION_MIN_CONTRATO_INFERIOR_ANO = Decimal("2.00")
 
 # Minoración por pagos de préstamos para vivienda habitual
 MINORACION_VIVIENDA_PORCENTAJE = Decimal("0.02")

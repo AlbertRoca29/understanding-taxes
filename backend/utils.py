@@ -124,10 +124,10 @@ def calcular_tipo_retencion(cuota, retrib, presviv, minopago, ceumeli, contrato,
         diferencia_positiva = Decimal("0.00")
     tipo = truncar((diferencia_positiva / retrib) * Decimal("100")) if retrib > 0 else Decimal("0.00")
     # Límites mínimos y máximos
-    if contrato == "ESPECIAL" and tipo < Decimal("15.00"):
-        tipo = Decimal("15.00")
-    elif contrato == "INFERIORAÑO" and tipo < Decimal("2.00"):
-        tipo = Decimal("2.00")
+    if contrato == "ESPECIAL" and tipo < RETENCION_MIN_CONTRATO_ESPECIAL:
+        tipo = RETENCION_MIN_CONTRATO_ESPECIAL
+    elif contrato == "INFERIORAÑO" and tipo < RETENCION_MIN_CONTRATO_INFERIOR_ANO:
+        tipo = RETENCION_MIN_CONTRATO_INFERIOR_ANO
     if tipo > limite_max:
         tipo = limite_max
     return tipo
@@ -149,7 +149,7 @@ def calcular_cuota_retencion(base, minperfa, anualidades=Decimal("0.00"), escala
         cuota1 = escala_retencion(base)
     # Cuota2
     if anualidades > 0 and (base - anualidades) > 0:
-        cuota2 = escala_retencion(minperfa + Decimal("1980.00"))
+        cuota2 = escala_retencion(minperfa + ANUALIDADES_MINPERFA_EXTRA)
     else:
         cuota2 = escala_retencion(minperfa)
     # Cálculo final
@@ -304,7 +304,7 @@ def calcular_marginal_irpf(base: Decimal, minperfa: Decimal, anualidades: Decima
 
     # compute cuota2 (constant w.r.t. base)
     if anualidades > 0 and (base - anualidades) > 0:
-        cuota2 = escala_retencion(minperfa + Decimal("1980.00"))
+        cuota2 = escala_retencion(minperfa + ANUALIDADES_MINPERFA_EXTRA)
     else:
         cuota2 = escala_retencion(minperfa)
 
