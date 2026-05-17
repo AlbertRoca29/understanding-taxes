@@ -1,6 +1,9 @@
 # Calculadora IRPF
 
-Calcula el sou net a partir del brut tenint en compte les cotitzacions a la Seguretat Social, la retenció d'IRPF (escales 2025 estatal i catalana) i la situació familiar. Inclou una eina per veure quant et queda realment d'una pujada de sou.
+Calcula el sou net a partir del brut tenint en compte les cotitzacions a la Seguretat Social, la retenció d'IRPF (escales 2026 estatal i catalana) i la situació familiar. Inclou una eina per veure quant et queda realment d'una pujada de sou.
+
+El càlcul està fet basant-se en l'algorisme públic de l'Agència Tributaria [EJERCICIO_2026](https://sede.agenciatributaria.gob.es/static_files/Sede/Programas_ayuda/Retenciones/2026/ALGORITMO_2026.pdf)
+
 
 ## Estructura
 
