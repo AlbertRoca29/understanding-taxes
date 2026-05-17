@@ -6,189 +6,15 @@
     <title>Calculadora IRPF</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
     <style>
-        :root {
-            --primary: #e2231a;
-            --primary-dark: #b81b13;
-            --primary-light: #fff1f0;
-            --bg: #f3f3f3;
-            --card: #ffffff;
-            --shadow: 0 2px 16px rgba(0,0,0,0.08);
-            --radius: 14px;
-            --input-bg: #f8f8f8;
-            --input-border: #ddd;
-            --text: #1a1a1a;
-            --text-muted: #666;
-        }
-
-        *, *::before, *::after { box-sizing: border-box; }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            font-family: 'Inter', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        /* ---- Navbar ---- */
-        .navbar {
-            background: var(--primary);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .navbar-inner {
-            max-width: 1140px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-        }
-        .navbar a {
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.93em;
-            padding: 0.8em 1.1em;
-            border-bottom: 3px solid transparent;
-            transition: color 0.15s, border-color 0.15s;
-            display: inline-block;
-            letter-spacing: 0.01em;
-        }
-        .navbar a.active,
-        .navbar a:hover {
-            color: #fff;
-            border-bottom-color: rgba(255,255,255,0.6);
-        }
-
-        /* ---- Page layout ---- */
-        .page-wrapper {
-            max-width: 1140px;
-            margin: 0 auto;
-            padding: 24px 16px 56px;
-        }
-
-        .main-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* Desktop / landscape: two columns */
         @media (min-width: 768px) and (orientation: landscape),
                (min-width: 1024px) {
-            .page-wrapper {
-                padding: 36px 28px 56px;
-            }
-            .main-grid {
-                flex-direction: row;
-                align-items: flex-start;
-            }
-            .form-panel {
-                flex: 0 0 440px;
-            }
+            .form-panel { flex: 0 0 440px; }
             .result-panel {
-                flex: 1 1 0;
-                position: sticky;
-                top: 58px;
                 max-height: calc(100vh - 80px);
                 overflow-y: auto;
             }
-        }
-
-        /* ---- Panels ---- */
-        .form-panel,
-        .result-panel {
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            padding: 28px 22px;
-        }
-
-        h1 {
-            color: var(--primary);
-            font-size: 1.55em;
-            font-weight: 700;
-            margin: 0 0 22px 0;
-            letter-spacing: -0.01em;
-        }
-
-        /* ---- Empty state ---- */
-        .result-placeholder {
-            color: var(--text-muted);
-            text-align: center;
-            padding: 40px 16px;
-            font-size: 0.93em;
-            border: 2px dashed #e8e8e8;
-            border-radius: 10px;
-        }
-
-        /* ---- Form ---- */
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .form-row {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        label {
-            font-weight: 500;
-            font-size: 0.88em;
-            color: #444;
-            display: block;
-            letter-spacing: 0.01em;
-        }
-
-        input[type="number"],
-        input[type="text"],
-        select {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1.5px solid var(--input-border);
-            background: var(--input-bg);
-            font-size: 0.97rem;
-            font-family: inherit;
-            color: var(--text);
-            transition: border-color 0.15s, box-shadow 0.15s;
-            outline: none;
-        }
-        input[type="number"]:focus,
-        input[type="text"]:focus,
-        select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(226,35,26,0.1);
-        }
-
-        /* ---- Pills ---- */
-        .pill-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .pill {
-            padding: 7px 16px;
-            border-radius: 20px;
-            border: 1.5px solid var(--input-border);
-            background: var(--input-bg);
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 0.88em;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
-            user-select: none;
-        }
-        .pill.selected {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
         }
 
         /* ---- Toggle switch ---- */
@@ -261,7 +87,7 @@
             background: #fafafa;
         }
 
-        /* ---- Buttons ---- */
+        /* ---- Extra buttons ---- */
         .add-btn {
             background: var(--primary);
             color: #fff;
@@ -276,23 +102,6 @@
         }
         .add-btn:hover { background: var(--primary-dark); }
 
-        .btn-submit {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 9px;
-            padding: 13px 24px;
-            font-size: 1em;
-            font-family: inherit;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.15s;
-            width: 100%;
-            margin-top: 6px;
-            letter-spacing: 0.02em;
-        }
-        .btn-submit:hover { background: var(--primary-dark); }
-
         .remove-btn {
             background: #dc3545;
             color: #fff;
@@ -306,7 +115,7 @@
         }
         .remove-btn:hover { background: #b02a37; }
 
-        /* ---- Result output ---- */
+        /* ---- Result / plots ---- */
         #result { font-size: 0.95em; line-height: 1.7; }
         #plots { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
         #plots img {
@@ -315,44 +124,10 @@
             border: 1px solid #ebebeb;
             box-shadow: 0 2px 12px rgba(0,0,0,0.06);
         }
-
-        /* ---- Mobile ---- */
-        @media (max-width: 480px) {
-            .form-panel, .result-panel { padding: 20px 14px; }
-            h1 { font-size: 1.3em; }
-        }
-
-        /* ---- Footer ---- */
-        .site-footer {
-            max-width: 1140px;
-            margin: 0 auto;
-            padding: 16px 16px 28px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            color: var(--text-muted);
-            font-size: 0.8em;
-            border-top: 1px solid #e4e4e4;
-        }
-        .site-footer a {
-            color: var(--text-muted);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            transition: color 0.15s;
-        }
-        .site-footer a:hover { color: var(--primary); }
-        .site-footer .sep { opacity: 0.4; }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="navbar-inner">
-            <a href="index.html" class="active">Calculadora IRPF</a>
-            <a href="increment.html">Increment de sou</a>
-        </div>
-    </nav>
+    <nav class="navbar" id="navbar"></nav>
 
     <div class="page-wrapper">
         <div class="main-grid">
@@ -476,17 +251,9 @@
         </div>
     </div>
 
-    <footer class="site-footer">
-        <span>Albert Roca Llevadot</span>
-        <span class="sep">·</span>
-        <a href="https://github.com/AlbertRoca29" target="_blank" rel="noopener">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            AlbertRoca29
-        </a>
-        <span class="sep">·</span>
-        <a href="mailto:albertrocallevadot@gmail.com">albertrocallevadot@gmail.com</a>
-    </footer>
+    <footer class="site-footer" id="site-footer"></footer>
 
+    <script src="shared.js"></script>
     <script>
     // Pills
     function bindPills(groupId, hiddenId) {
@@ -658,7 +425,6 @@ ${fmt(result.gross_per_paga)} − <span style="color:#888">SS ${fmt(result.ss_pe
                 });
             }
 
-            // Scroll result panel into view on mobile
             if (window.innerWidth < 1024) {
                 document.querySelector('.result-panel').scrollIntoView({behavior:'smooth', block:'start'});
             }
