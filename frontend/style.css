@@ -167,6 +167,40 @@ select:focus {
     border-color: var(--primary);
 }
 
+/* ---- Person cards (situació familiar) ---- */
+.person-card {
+    border: 1.5px solid var(--input-border);
+    border-radius: 10px;
+    padding: 12px 12px 14px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+}
+.person-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 0.86em;
+    color: #444;
+}
+.mini-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.mini-label {
+    font-size: 0.82em;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.field-hint {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
 /* ---- Submit button ---- */
 .btn-submit {
     background: var(--primary);

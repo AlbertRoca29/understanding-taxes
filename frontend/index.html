@@ -206,33 +206,26 @@
                     <details>
                         <summary>Situació personal i familiar</summary>
                         <div class="group-content">
-                            <div class="form-row">
-                                <label for="disability_percent_self">Discapacitat pròpia: <strong id="disability_percent_self_val">0%</strong></label>
-                                <input type="range" id="disability_percent_self" name="disability_percent_self" min="0" max="100" value="0" style="width:100%;accent-color:var(--primary)">
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox" id="disability_self_help" name="disability_self_help">
-                                <span class="slider"></span>
-                                Necessita ajuda de mobilitat
-                            </label>
-                            <div>
-                                <label style="font-weight:600;margin-bottom:8px;display:block;font-size:0.9em">Fills</label>
-                                <div id="childrenList"></div>
-                                <button type="button" class="add-btn" onclick="addChild()" style="margin-top:8px">+ Afegir fill</button>
-                            </div>
-                            <div>
-                                <label style="font-weight:600;margin-bottom:8px;display:block;font-size:0.9em">Ascendents dependents</label>
-                                <div id="ascendentsList"></div>
-                                <button type="button" class="add-btn" onclick="addAscendent()" style="margin-top:8px">+ Afegir ascendent</button>
-                            </div>
-                        </div>
-                    </details>
 
-                    <details>
-                        <summary>Familiars amb discapacitat</summary>
-                        <div class="group-content">
-                            <div id="relativesList"></div>
-                            <button type="button" class="add-btn" onclick="addRelative()">+ Afegir familiar</button>
+                            <div class="mini-row">
+                                <span class="mini-label">La teva discapacitat</span>
+                                <div class="pill-group" id="selfDisabilityGroup"></div>
+                            </div>
+                            <div id="selfHelpWrap"></div>
+
+                            <div>
+                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Fills</label>
+                                <div class="field-hint" style="margin-bottom:8px">Els fills de 25 anys o més només compten si tenen discapacitat.</div>
+                                <div id="childrenList" style="display:flex;flex-direction:column;gap:10px"></div>
+                                <button type="button" class="add-btn" onclick="addChild()" style="margin-top:10px">+ Afegir fill</button>
+                            </div>
+
+                            <div>
+                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Ascendents a càrrec</label>
+                                <div class="field-hint" style="margin-bottom:8px">Un pare/mare/avi compta si té 65 anys o més o té discapacitat.</div>
+                                <div id="ascendantsList" style="display:flex;flex-direction:column;gap:10px"></div>
+                                <button type="button" class="add-btn" onclick="addAscendant()" style="margin-top:10px">+ Afegir ascendent</button>
+                            </div>
                         </div>
                     </details>
 
@@ -270,88 +263,74 @@
     bindPills('agePills', 'age');
     bindPills('contractTypePills', 'contract_type');
 
-    // Disability slider
-    const disabilitySlider = document.getElementById('disability_percent_self');
-    const disabilityVal = document.getElementById('disability_percent_self_val');
-    disabilitySlider.oninput = function() { disabilityVal.textContent = this.value + '%'; };
+    // ── Situació familiar (agrupada per persona) ─────────────────────────────
+    // Cada selector envia el valor representatiu del tram que realment compta.
+    const DISAB_OPTS = [['Cap', 0], ['33–64%', 50], ['65% o més', 80]];
+    const CHILD_AGE  = [['Menys de 3', 1], ['3–24 anys', 10], ['25 o més', 30]];
+    const ASC_AGE    = [['Menys de 65', 60], ['65–74', 70], ['75 o més', 80]];
 
-    // Children
+    function pillGroup(opts, current, makeCall) {
+        return '<div class="pill-group">' + opts.map(([label, val]) =>
+            `<div class="pill${current === val ? ' selected' : ''}" onclick="${makeCall(val)}">${label}</div>`
+        ).join('') + '</div>';
+    }
+    // L'ajuda només es demana al tram 33–64%; a 65%+ ja s'aplica automàticament.
+    function helpToggle(checked, call) {
+        return `<label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} onchange="${call}"><span class="slider"></span>Necessita ajuda de tercers o mobilitat reduïda</label>`;
+    }
+    function personCard(kind, m, i, ageOpts, label) {
+        const help = m.disability === 50 ? helpToggle(m.help, `set_${kind}(${i},'help',this.checked)`) : '';
+        return `<div class="person-card">
+            <div class="person-card-head"><span>${label} ${i + 1}</span>
+                <button type="button" class="remove-btn" onclick="remove_${kind}(${i})">&times;</button></div>
+            <div class="mini-row"><span class="mini-label">Edat</span>${pillGroup(ageOpts, m.age, v => `set_${kind}(${i},'age',${v})`)}</div>
+            <div class="mini-row"><span class="mini-label">Discapacitat</span>${pillGroup(DISAB_OPTS, m.disability, v => `set_${kind}(${i},'disability',${v})`)}</div>
+            ${help}
+        </div>`;
+    }
+    function updateMember(arr, render, i, key, val) {
+        arr[i][key] = val;
+        if (key === 'disability' && val !== 50) arr[i].help = false;
+        render();
+    }
+
+    // Discapacitat pròpia
+    let selfDisability = 0, selfHelp = false;
+    function renderSelf() {
+        document.getElementById('selfDisabilityGroup').innerHTML =
+            pillGroup(DISAB_OPTS, selfDisability, v => `setSelfDisability(${v})`);
+        document.getElementById('selfHelpWrap').innerHTML =
+            selfDisability === 50 ? helpToggle(selfHelp, 'setSelfHelp(this.checked)') : '';
+    }
+    window.setSelfDisability = function(v) { selfDisability = v; if (v !== 50) selfHelp = false; renderSelf(); };
+    window.setSelfHelp = function(v) { selfHelp = v; };
+    renderSelf();
+
+    // Fills
     let children = [];
     function renderChildren() {
-        const list = document.getElementById('childrenList');
-        list.innerHTML = '';
-        children.forEach((child, i) => {
-            const row = document.createElement('div');
-            row.className = 'form-row';
-            row.style.flexDirection = 'row';
-            row.style.gap = '8px';
-            row.style.alignItems = 'center';
-            row.innerHTML = `
-                <input type="number" min="0" max="30" placeholder="Edat" value="${child.age}" style="max-width:80px;flex:0 0 80px">
-                <input type="number" min="0" max="100" placeholder="% discapacitat" value="${child.disability}" style="flex:1">
-                <button type="button" class="remove-btn" onclick="removeChild(${i})">&times;</button>
-            `;
-            list.appendChild(row);
-        });
+        document.getElementById('childrenList').innerHTML =
+            children.map((m, i) => personCard('child', m, i, CHILD_AGE, 'Fill')).join('');
     }
-    window.addChild = function() { children.push({age:'',disability:''}); renderChildren(); };
-    window.removeChild = function(i) { children.splice(i,1); renderChildren(); };
+    window.set_child = function(i, key, val) { updateMember(children, renderChildren, i, key, val); };
+    window.remove_child = function(i) { children.splice(i, 1); renderChildren(); };
+    window.addChild = function() { children.push({ age: 10, disability: 0, help: false }); renderChildren(); };
     renderChildren();
 
     // Ascendents
-    let ascendents = [];
-    function renderAscendents() {
-        const list = document.getElementById('ascendentsList');
-        list.innerHTML = '';
-        ascendents.forEach((age, i) => {
-            const row = document.createElement('div');
-            row.className = 'form-row';
-            row.style.flexDirection = 'row';
-            row.style.gap = '8px';
-            row.style.alignItems = 'center';
-            row.innerHTML = `
-                <input type="number" min="40" max="120" placeholder="Edat" value="${age}" style="flex:1">
-                <button type="button" class="remove-btn" onclick="removeAscendent(${i})">&times;</button>
-            `;
-            list.appendChild(row);
-        });
+    let ascendants = [];
+    function renderAscendants() {
+        document.getElementById('ascendantsList').innerHTML =
+            ascendants.map((m, i) => personCard('asc', m, i, ASC_AGE, 'Ascendent')).join('');
     }
-    window.addAscendent = function() { ascendents.push(''); renderAscendents(); };
-    window.removeAscendent = function(i) { ascendents.splice(i,1); renderAscendents(); };
-    renderAscendents();
-
-    // Relatives
-    let relatives = [];
-    function renderRelatives() {
-        const list = document.getElementById('relativesList');
-        list.innerHTML = '';
-        relatives.forEach((rel, i) => {
-            const row = document.createElement('div');
-            row.className = 'form-row';
-            row.style.flexDirection = 'row';
-            row.style.gap = '8px';
-            row.style.alignItems = 'center';
-            row.innerHTML = `
-                <input type="number" min="0" max="100" placeholder="% discapacitat" value="${rel.perc}" style="flex:1">
-                <label class="switch" style="flex-shrink:0"><input type="checkbox" ${rel.help?'checked':''} onchange="toggleRelativeHelp(${i},this.checked)"><span class="slider"></span>Ajuda</label>
-                <button type="button" class="remove-btn" onclick="removeRelative(${i})">&times;</button>
-            `;
-            list.appendChild(row);
-        });
-    }
-    window.addRelative = function() { relatives.push({perc:'',help:false}); renderRelatives(); };
-    window.removeRelative = function(i) { relatives.splice(i,1); renderRelatives(); };
-    window.toggleRelativeHelp = function(i, val) { relatives[i].help = val; };
-    renderRelatives();
+    window.set_asc = function(i, key, val) { updateMember(ascendants, renderAscendants, i, key, val); };
+    window.remove_asc = function(i) { ascendants.splice(i, 1); renderAscendants(); };
+    window.addAscendant = function() { ascendants.push({ age: 70, disability: 0, help: false }); renderAscendants(); };
+    renderAscendants();
 
     // Form submit
     document.getElementById('irpfForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const children_ages = children.map(c => c.age).filter(x=>x!=='').join(',');
-        const children_disabilities = children.map(c => c.disability).filter(x=>x!=='').join(',');
-        const ascendents_ages = ascendents.filter(x=>x!=='').join(',');
-        const disability_relatives_perc = relatives.map(r => r.perc).filter(x=>x!=='').join(',');
-        const disability_relatives_help = relatives.map(r => r.help ? 'true' : 'false').join(',');
         const data = {
             gross: parseFloat(document.getElementById('gross').value),
             region: document.getElementById('region').value,
@@ -362,13 +341,10 @@
             contract_type: document.getElementById('contract_type').value,
             other_deductions: parseFloat(document.getElementById('other_deductions').value) || 0,
             age: parseInt(document.getElementById('age').value),
-            disability_percent_self: parseInt(document.getElementById('disability_percent_self').value),
-            disability_self_help: document.getElementById('disability_self_help').checked,
-            children_ages,
-            children_disabilities,
-            ascendents_ages,
-            disability_relatives_perc,
-            disability_relatives_help
+            disability_percent_self: selfDisability,
+            disability_self_help: selfHelp,
+            children: children.map(c => ({ age: c.age, disability: c.disability, needs_help: c.disability === 50 ? c.help : false })),
+            ascendants: ascendants.map(a => ({ age: a.age, disability: a.disability, needs_help: a.disability === 50 ? a.help : false }))
         };
 
         const placeholder = document.getElementById('resultPlaceholder');
@@ -379,8 +355,8 @@
         plotsEl.innerHTML = '';
 
         try {
-            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
-            //const response = await fetch('http://localhost:8000/api/calculate', {
+            // const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
+            const response = await fetch('http://localhost:8000/api/calculate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
