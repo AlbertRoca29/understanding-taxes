@@ -22,75 +22,74 @@ def round_euro(x: Decimal) -> Decimal:
 @dataclass
 class FamilySituation:
     age: int = 30
-    children_ages: List[int] = field(default_factory=list)
-    children_disabilities: List[int] = field(default_factory=list)
-    ascendents_ages: List[int] = field(default_factory=list)
     disability_percent_self: int = 0
     disability_self_help: bool = False
-    disability_relatives: List[Tuple[int, bool]] = field(default_factory=list)
+    # Cada familiar és (edat, % discapacitat, necessita ajuda de tercers/mobilitat reduïda)
+    children: List[Tuple[int, int, bool]] = field(default_factory=list)
+    ascendants: List[Tuple[int, int, bool]] = field(default_factory=list)
+
+    @staticmethod
+    def _disability_minimum(perc: int, needs_help: bool) -> Decimal:
+        """Mínim per discapacitat d'un descendent/ascendent (art. 60 LIRPF)."""
+        extra = Decimal("0.00")
+        if perc >= 65:
+            extra += DISABILITY_RELATIVES_ADJUSTMENTS[1][1]
+        elif perc >= 33:
+            extra += DISABILITY_RELATIVES_ADJUSTMENTS[0][1]
+        # L'extra per assistència s'aplica si necessita ajuda O té un grau >= 65%.
+        if perc >= 33 and (needs_help or perc >= 65):
+            extra += DISABILITY_RELATIVES_HELP_EXTRA
+        return extra
 
     def minimo_personal_familiar(self) -> Decimal:
-        # Mínimo del contribuyente
+        # ── Mínim del contribuent (acumulatiu) ───────────────────────────────
         minimo = MINIMO_CONTRIBUYENTE
-        if self.age >= 75:
-            minimo += MINIMO_75
         if self.age >= 65:
             minimo += MINIMO_65
+        if self.age >= 75:
+            minimo += MINIMO_75
 
-        # Mínimo por descendientes < 25 años o con discapacidad
-        mindesg = Decimal("0.00")
-        mindes3 = Decimal("0.00")
-        for i, child_age in enumerate(self.children_ages):
-            if child_age < 25:
-                order = i + 1
-                if order <= len(CHILDREN_UNDER_25_ADJUSTMENT):
-                    mindesg += CHILDREN_UNDER_25_ADJUSTMENT[order - 1][1]
-                else:
-                    mindesg += CHILDREN_UNDER_25_ADJUSTMENT[-1][1]
-                if child_age < 3:
-                    mindes3 += CHILDREN_UNDER_3_EXTRA
-        mindesg = redondear1(mindesg)
-        mindes3 = redondear1(mindes3)
-        mindes = mindesg + mindes3
+        # ── Mínim per descendents ────────────────────────────────────────────
+        # Compten els fills < 25 anys o amb discapacitat. L'import per ordre
+        # (1r, 2n, 3r, 4t+) s'assigna als que compten, en l'ordre de la llista.
+        mindes = Decimal("0.00")
+        order = 0
+        for child_age, child_disab, child_help in self.children:
+            counts = child_age < 25 or child_disab >= 33
+            if not counts:
+                continue
+            order += 1
+            idx = min(order, len(CHILDREN_UNDER_25_ADJUSTMENT)) - 1
+            mindes += CHILDREN_UNDER_25_ADJUSTMENT[idx][1]
+            if child_age < 3:
+                mindes += CHILDREN_UNDER_3_EXTRA
+            mindes += self._disability_minimum(child_disab, child_help)
 
-        # Mínimo por ascendientes >= 65 años o con discapacidad
+        # ── Mínim per ascendents ─────────────────────────────────────────────
+        # Compten els ascendents >= 65 anys o amb discapacitat. El tram d'edat
+        # és acumulatiu (>=75 suma 65 i 75), igual que el del contribuent.
         minas = Decimal("0.00")
-        for asc_age in self.ascendents_ages:
+        for asc_age, asc_disab, asc_help in self.ascendants:
+            counts = asc_age >= 65 or asc_disab >= 33
+            if not counts:
+                continue
+            if asc_age >= 65:
+                minas += ASCENDENTS_ADJUSTMENT[0][1]
             if asc_age >= 75:
                 minas += ASCENDENTS_ADJUSTMENT[1][1]
-            elif asc_age >= 65:
-                minas += ASCENDENTS_ADJUSTMENT[0][1]
-        minas = redondear1(minas)
+            minas += self._disability_minimum(asc_disab, asc_help)
 
-        # Mínimo por discapacidad del contribuyente
+        # ── Mínim per discapacitat del contribuent ───────────────────────────
         mindisc = Decimal("0.00")
         if self.disability_percent_self >= 65:
             mindisc += DISABILITY_SELF_ADJUSTMENTS[1][1]
         elif self.disability_percent_self >= 33:
             mindisc += DISABILITY_SELF_ADJUSTMENTS[0][1]
-        if self.disability_self_help:
+        if self.disability_percent_self >= 33 and (self.disability_self_help or self.disability_percent_self >= 65):
             mindisc += DISABILITY_SELF_HELP_EXTRA
 
-        # Mínimo por discapacidad de descendientes y ascendientes
-        disdes = Decimal("0.00")
-        for perc in self.children_disabilities:
-            if perc >= 65:
-                disdes += DISABILITY_RELATIVES_ADJUSTMENTS[1][1]
-            elif perc >= 33:
-                disdes += DISABILITY_RELATIVES_ADJUSTMENTS[0][1]
-        disas = Decimal("0.00")
-        for perc in self.disability_relatives:
-            if perc[0] >= 65:
-                disas += DISABILITY_RELATIVES_ADJUSTMENTS[1][1]
-            elif perc[0] >= 33:
-                disas += DISABILITY_RELATIVES_ADJUSTMENTS[0][1]
-            if perc[1]:
-                disas += DISABILITY_RELATIVES_HELP_EXTRA
-        mindis = mindisc + disdes + disas
-
-        # Suma total de mínimos
-        mincon = minimo
-        minperfa = mincon + mindes + minas + mindis
+        # ── Suma total ───────────────────────────────────────────────────────
+        minperfa = minimo + mindes + minas + mindisc
         return redondear1(minperfa)
 def calcular_gastos_deducibles(retrib, cotizaciones, movilidad_geografica, discapacidad_trabajador_activo, discapacidad_trabajador_activo_grave, situper):
     gastosgen = GASTOS_DEDUCIDOS["otros_gastos_generales"]

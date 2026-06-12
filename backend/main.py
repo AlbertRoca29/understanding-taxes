@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List
 from decimal import Decimal
 import base64
 import io
@@ -20,6 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class FamilyMember(BaseModel):
+    age: int
+    disability: int = 0       # 0 / 33-64 / 65+ (% representatiu del tram)
+    needs_help: bool = False  # necessita ajuda de tercers o mobilitat reduïda
+
 class SalaryRequest(BaseModel):
     gross: float
     region: str
@@ -30,13 +36,10 @@ class SalaryRequest(BaseModel):
     contract_type: str
     other_deductions: float
     age: int
-    disability_percent_self: int
-    disability_self_help: bool
-    children_ages: str
-    children_disabilities: str
-    ascendents_ages: str
-    disability_relatives_perc: str
-    disability_relatives_help: str
+    disability_percent_self: int = 0
+    disability_self_help: bool = False
+    children: List[FamilyMember] = []
+    ascendants: List[FamilyMember] = []
 
 class IncrementRequest(BaseModel):
     previous_gross: float
@@ -48,6 +51,8 @@ class IncrementRequest(BaseModel):
     contract_type: str
     other_deductions: float
     age: int
+    # Única dada familiar que afecta l'increment: mou la base via despeses deduïbles.
+    disability_self: int = 0
 
 def fig_to_base64(fig):
     buf = io.BytesIO()
@@ -209,28 +214,12 @@ async def calculate_salary(data: SalaryRequest):
     other_deductions = Decimal(str(data.other_deductions))
     age = data.age
     region = data.region
-    disability_percent_self = data.disability_percent_self
-    disability_self_help = data.disability_self_help
-    def parse_int_list(s):
-        return [int(x.strip()) for x in s.split(',') if x.strip() != ''] if s else []
-    def parse_bool_list(s):
-        return [x.strip().lower() in ("true","1","yes") for x in s.split(',') if x.strip() != ''] if s else []
-    children_ages = parse_int_list(data.children_ages)
-    children_disabilities = parse_int_list(data.children_disabilities)
-    ascendents_ages = parse_int_list(data.ascendents_ages)
-    disability_relatives_perc = parse_int_list(data.disability_relatives_perc)
-    disability_relatives_help = parse_bool_list(data.disability_relatives_help)
-    while len(disability_relatives_help) < len(disability_relatives_perc):
-        disability_relatives_help.append(False)
-    disability_relatives = list(zip(disability_relatives_perc, disability_relatives_help))
     fam = FamilySituation(
         age=age,
-        children_ages=children_ages,
-        children_disabilities=children_disabilities,
-        ascendents_ages=ascendents_ages,
-        disability_percent_self=disability_percent_self,
-        disability_self_help=disability_self_help,
-        disability_relatives=disability_relatives
+        disability_percent_self=data.disability_percent_self,
+        disability_self_help=data.disability_self_help,
+        children=[(m.age, m.disability, m.needs_help) for m in data.children],
+        ascendants=[(m.age, m.disability, m.needs_help) for m in data.ascendants],
     )
     calc = perform_calculation(
         gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region
@@ -287,8 +276,9 @@ async def calculate_salary(data: SalaryRequest):
 
 @app.post("/api/increment")
 async def calculate_increment(data: IncrementRequest):
-    # Use default FamilySituation and region for increment calculation
-    fam = FamilySituation(age=data.age)
+    # La discapacitat pròpia és l'única dada familiar que mou l'increment net
+    # (la resta del mínim personal/familiar es cancel·la a la diferència).
+    fam = FamilySituation(age=data.age, disability_percent_self=data.disability_self)
     region = "Catalunya"
     prev = perform_calculation(
         Decimal(str(data.previous_gross)), data.n_pagues, data.pagues_prorratejades, Decimal(str(data.retribucio_en_especie_ann)),
