@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora IRPF</title>
-    <link rel="icon" type="image/x-icon" href="../logo.ico">
+    <title>Calculadora d'impostos per al treballador</title>
+    <link rel="icon" type="image/x-icon" href="logo.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -135,8 +135,10 @@
 
             <!-- LEFT: form -->
             <div class="form-panel">
-                <h1>Calculadora IRPF</h1>
+                <h1>Calculadora de sou net</h1>
+                <p class="page-subtitle">Del salari brut al sou que arriba al teu compte.</p>
                 <form id="irpfForm">
+                    <!-- <h3 class="section-label">Dades del contracte</h3> -->
                     <div class="form-row">
                         <label for="gross">Sou brut anual (€) <span style="color:var(--primary)">*</span></label>
                         <input type="number" id="gross" name="gross" required step="any" placeholder="Ex: 30000">
@@ -355,8 +357,8 @@
         plotsEl.innerHTML = '';
 
         try {
-            // const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
-            const response = await fetch('http://localhost:8000/api/calculate', {
+            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
+            // const response = await fetch('http://localhost:8000/api/calculate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
