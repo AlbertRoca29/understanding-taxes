@@ -60,6 +60,16 @@
                         </div>
                         <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
                     </div>
+                    <div class="form-row">
+                        <label>La teva discapacitat</label>
+                        <div class="pill-group" id="disabilitySelfPills">
+                            <div class="pill selected" data-value="0">Cap</div>
+                            <div class="pill" data-value="50">33–64%</div>
+                            <div class="pill" data-value="80">65% o més</div>
+                        </div>
+                        <input type="hidden" id="disability_self" value="0">
+                        <div class="field-hint">Fills, ascendents i edat no modifiquen l'increment: el seu efecte es cancel·la entre el sou actual i el nou.</div>
+                    </div>
                     <button type="submit" class="btn-submit">Calcular increment</button>
                 </form>
             </div>
@@ -79,13 +89,17 @@
 
     <script src="shared.js"></script>
     <script>
-    document.querySelectorAll('#contractTypePills .pill').forEach(pill => {
-        pill.onclick = function() {
-            document.querySelectorAll('#contractTypePills .pill').forEach(p => p.classList.remove('selected'));
-            pill.classList.add('selected');
-            document.getElementById('contract_type').value = pill.getAttribute('data-value');
-        };
-    });
+    function bindPills(groupId, hiddenId) {
+        document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
+            pill.onclick = function() {
+                document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
+                pill.classList.add('selected');
+                document.getElementById(hiddenId).value = pill.getAttribute('data-value');
+            };
+        });
+    }
+    bindPills('contractTypePills', 'contract_type');
+    bindPills('disabilitySelfPills', 'disability_self');
 
     document.getElementById('incrementForm').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -121,7 +135,8 @@
                     grup_cotitzacio: grupCotitzacio,
                     contract_type: contractType,
                     other_deductions: 0,
-                    age: 30
+                    age: 30,
+                    disability_self: parseInt(document.getElementById('disability_self').value)
                 })
             });
             if (!response.ok) throw new Error('API error');
