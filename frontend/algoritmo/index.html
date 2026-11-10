@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRPF Algorithm Diagrams</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<style>
+  main { max-width: 980px; margin: 0 auto; padding: 28px 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  a.tile { display: block; background: #fff; border-radius: 14px; padding: 18px; text-decoration: none; color: inherit; box-shadow: 0 2px 16px rgba(0,0,0,.06); border: 2px solid transparent; }
+  a.tile:hover { border-color: var(--primary); }
+  a.tile b { font-size: 17px; color: var(--primary-dark); } a.tile p { color: #555; font-size: 14px; margin: 8px 0 0; }
+  .stat { display: flex; gap: 28px; margin: 16px 0 26px; flex-wrap: wrap; } .stat div { font-size: 13px; color: var(--muted); } .stat b { display: block; font-size: 26px; color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h2 style="margin-top:0">Four ways to draw the same algorithm</h2>
+  <div style="color:#555">All four are generated from one model of the official AEAT document <i>Algoritmo de cálculo del tipo de retención – 2026 (desde 10-sep)</i>. Pick the one that feels right and we'll polish it.</div>
+  <div class="stat" id="stat"></div>
+  <div class="grid">
+    <a class="tile" href="dataflow.html"><b>A · Dependency graph</b><p>Every variable as a box, every “computed from” as an arrow, auto-laid-out and grouped by section. Click to trace a value back to the inputs.</p></a>
+    <a class="tile" href="flowchart.html"><b>B · Flowchart</b><p>The order of steps and if/else decisions, like the pseudocode. Your profile's path lights up in red.</p></a>
+    <a class="tile" href="zoommap.html"><b>C · Zoomable map</b><p>Semantic zoom: sections → variables → formulas with example values, Google-Maps style.</p></a>
+    <a class="tile" href="waterfall.html"><b>D · Live walkthrough</b><p>Not a graph but a money story: waterfall from gross pay to base, the two scale bars, the rate. Edit the profile live.</p></a>
+  </div>
+</main>
+<script src="data.js"></script><script src="calc.js"></script><script src="nav.js"></script>
+<script>
+const n = IRPF.nodes, e = n.reduce((s, x) => s + x.deps.length, 0);
+document.getElementById('stat').innerHTML = `<div><b>${IRPF.stages.length}</b>sections</div><div><b>${n.length}</b>variables</div><div><b>${e}</b>dependencies</div><div><b>${n.filter(x => x.kind === 'input').length}</b>inputs</div><div><b>${Object.values(IRPF.topics).filter(t => t.excluded).length}</b>niche branches left out</div>`;
+</script>
+</body>
+</html>

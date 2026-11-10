@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A · Dependency graph</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <h3>What it is</h3>
+    <div>Every variable of the algorithm is a box; an arrow means “is computed from”. Boxes are grouped by section of the PDF. Click one to light up its whole upstream (red) and downstream (blue) chain.</div>
+    <h3>Search</h3>
+    <input type="search" id="q" placeholder="e.g. MINPERFA, children, 43 %">
+    <h3>Detail</h3>
+    <div id="detail"></div>
+    <h3>Branches shown</h3>
+    <div id="topics"></div>
+    <h3>Legend</h3>
+    <div class="legend">
+      <span><i style="border-color:var(--input);background:var(--input-bg)"></i>input</span>
+      <span><i style="border-color:#bbb;background:#fff"></i>calculation</span>
+      <span><i style="border-color:var(--const);background:var(--const-bg)"></i>constant / table</span>
+      <span><i style="border-color:var(--decision);background:var(--decision-bg)"></i>decision</span>
+      <span><i style="border-color:var(--output);background:var(--output-bg)"></i>key result</span>
+    </div>
+    <h3>Layout</h3>
+    <select id="dir"><option value="LR">Left → right</option><option value="TB">Top → bottom</option></select>
+  </aside>
+  <main class="canvas"><div id="cy" style="position:absolute;inset:0"></div>
+    <div class="hint">scroll = zoom · drag = pan · click = trace</div>
+    <div class="floating"><button class="btn" id="fit">Fit</button><button class="btn" id="clear">Clear</button></div>
+  </main>
+</div>
+<script src="data.js"></script><script src="calc.js"></script><script src="nav.js"></script>
+<script>
+const values = IRPFcalc.run({ children: [{ year: 2020, entero: true, disc: 'NO' }, { year: 2024, entero: true, disc: 'NO' }] });
+const css = getComputedStyle(document.documentElement);
+const C = k => css.getPropertyValue(k).trim();
+const kindStyle = {
+  input:    [C('--input'), C('--input-bg')],
+  calc:     ['#bbbbbb', '#ffffff'],
+  const:    [C('--const'), C('--const-bg')],
+  decision: [C('--decision'), C('--decision-bg')],
+  output:   [C('--output'), C('--output-bg')],
+};
+let cy, selected = null;
+
+function elements() {
+  const vis = IRPF.nodes.filter(Topics.visible);
+  const ids = new Set(vis.map(n => n.id));
+  const els = IRPF.stages.filter(s => vis.some(n => n.stage === s.id))
+    .map(s => ({ data: { id: 'S_' + s.id, label: `${s.n}. ${s.title}` }, classes: 'stage' }));
+  vis.forEach(n => els.push({ data: {
+    id: n.id, parent: 'S_' + n.stage, label: `${n.name.length > 28 ? n.name.slice(0, 26) + '…' : n.name}\n${n.label}`,
+    border: kindStyle[n.kind][0], bg: kindStyle[n.kind][1],
+  }, classes: n.kind }));
+  vis.forEach(n => n.deps.filter(d => ids.has(d)).forEach(d => els.push({ data: { id: d + '>' + n.id, source: d, target: n.id } })));
+  return els;
+}
+
+function build() {
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: document.getElementById('cy'), elements: elements(), wheelSensitivity: 0.25, minZoom: 0.05, maxZoom: 3,
+    style: [
+      { selector: 'node', style: { shape: 'round-rectangle', label: 'data(label)', 'text-wrap': 'wrap', 'text-valign': 'center',
+        'font-family': 'Inter, Arial', 'font-size': 11, width: 'label', height: 'label', padding: 9,
+        'background-color': 'data(bg)', 'border-color': 'data(border)', 'border-width': 1.5, color: '#1a1a1a' } },
+      { selector: 'node.decision', style: { shape: 'round-diamond', padding: 18 } },
+      { selector: 'node.output', style: { 'border-width': 3, 'font-weight': 700 } },
+      { selector: '.stage', style: { shape: 'round-rectangle', 'background-color': '#fafafa', 'background-opacity': 1, 'border-color': '#ddd', 'border-width': 1,
+        label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'font-size': 15, 'font-weight': 700, color: '#b81b13', padding: 16, 'text-margin-y': -4 } },
+      { selector: 'edge', style: { width: 1.2, 'line-color': '#c9c9c9', 'target-arrow-color': '#c9c9c9', 'target-arrow-shape': 'triangle', 'arrow-scale': .8, 'curve-style': 'bezier' } },
+      { selector: '.faded', style: { opacity: .12 } },
+      { selector: 'node.up', style: { 'border-color': '#e2231a', 'border-width': 3 } },
+      { selector: 'node.down', style: { 'border-color': '#2f6fd6', 'border-width': 3 } },
+      { selector: 'edge.up', style: { 'line-color': '#e2231a', 'target-arrow-color': '#e2231a', width: 2.5, 'z-index': 9 } },
+      { selector: 'edge.down', style: { 'line-color': '#2f6fd6', 'target-arrow-color': '#2f6fd6', width: 2.5, 'z-index': 9 } },
+      { selector: 'node.sel', style: { 'border-color': '#1a1a1a', 'border-width': 4 } },
+      { selector: 'node.hit', style: { 'background-color': '#ffe58a' } },
+    ],
+    layout: { name: 'dagre', rankDir: document.getElementById('dir').value, nodeSep: 18, rankSep: 70, edgeSep: 6 },
+  });
+  cy.on('tap', 'node', e => { if (!e.target.hasClass('stage')) trace(e.target.id()); });
+  cy.on('tap', e => { if (e.target === cy) clear(); });
+  if (selected && cy.getElementById(selected).length) trace(selected); else Detail.render(detail, null);
+}
+
+function trace(id) {
+  selected = id;
+  const n = cy.getElementById(id);
+  cy.elements().removeClass('up down sel faded');
+  const up = n.predecessors(), down = n.successors();
+  cy.elements().not(up).not(down).not(n).not('.stage').addClass('faded');
+  up.addClass('up'); down.addClass('down'); n.addClass('sel');
+  Detail.render(detail, id, values, pick);
+}
+function pick(id) { trace(id); cy.animate({ center: { eles: cy.getElementById(id) }, zoom: Math.max(cy.zoom(), 1) }, { duration: 350 }); }
+function clear() { selected = null; cy.elements().removeClass('up down sel faded hit'); Detail.render(detail, null); }
+
+const detail = document.getElementById('detail');
+Topics.render(document.getElementById('topics'), build);
+document.getElementById('dir').onchange = build;
+document.getElementById('fit').onclick = () => cy.fit(undefined, 30);
+document.getElementById('clear').onclick = clear;
+document.getElementById('q').oninput = e => {
+  const q = e.target.value.trim().toLowerCase();
+  cy.nodes().removeClass('hit');
+  if (!q) return;
+  const hits = cy.nodes().filter(n => !n.hasClass('stage') && (n.data('label') + ' ' + (IRPF.byId[n.id()]?.f || '')).toLowerCase().includes(q));
+  hits.addClass('hit');
+  if (hits.length) cy.animate({ fit: { eles: hits, padding: 80 } }, { duration: 300 });
+};
+build();
+</script>
+</body>
+</html>

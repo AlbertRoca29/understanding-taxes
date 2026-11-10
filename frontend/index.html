@@ -27,92 +27,7 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <label>Regió</label>
-                        <div class="pill-group" id="regionPills">
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="Catalunya">Catalunya</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="Mitjana espanyola">Mitjana espanyola</button>
-                        </div>
-                        <input type="hidden" id="region" name="region" value="Catalunya">
-                    </div>
-
-                    <div class="form-row">
-                        <label>Nombre de pagues <span class="req">*</span></label>
-                        <div class="pill-group" id="paguesPills">
-                            <button type="button" aria-pressed="false" class="pill" data-value="12">12</button>
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="14">14</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="other">Altre</button>
-                            <input type="number" id="n_pagues" name="n_pagues" class="pagues-other" required min="1" max="15" step="1" value="14" placeholder="Nº" aria-label="Nombre de pagues" hidden>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <label for="grup_cotitzacio">Grup de cotització SS <span class="req">*</span></label>
-                        <select id="grup_cotitzacio" name="grup_cotitzacio" required></select>
-                    </div>
-
-                    <div class="form-row">
-                        <label>Edat</label>
-                        <div class="pill-group" id="agePills">
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="30">&lt; 65</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="65">65+</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="75">75+</button>
-                        </div>
-                        <input type="hidden" id="age" name="age" value="30">
-                    </div>
-
-                    <div class="form-row">
-                        <label>Tipus de contracte</label>
-                        <div class="pill-group" id="contractTypePills">
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="indefinite">Indefinit</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="temporary">Temporal</button>
-                        </div>
-                        <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
-                    </div>
-
-                    <details>
-                        <summary>Retribució en espècie i deduccions</summary>
-                        <div class="group-content">
-                            <div class="form-row">
-                                <label for="retribucio_en_especie_ann">Retribució en espècie anual</label>
-                                <div class="input-affix">
-                                    <input type="text" inputmode="decimal" data-money autocomplete="off" id="retribucio_en_especie_ann" name="retribucio_en_especie_ann" value="0" placeholder="Ex: 0">
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <label for="other_deductions">Altres deduccions</label>
-                                <div class="input-affix">
-                                    <input type="text" inputmode="decimal" data-money autocomplete="off" id="other_deductions" name="other_deductions" value="0" placeholder="Ex: 0">
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-
-                    <details>
-                        <summary>Situació personal i familiar</summary>
-                        <div class="group-content">
-
-                            <div class="mini-row">
-                                <span class="mini-label">La teva discapacitat</span>
-                                <div class="pill-group" id="selfDisabilityGroup"></div>
-                            </div>
-                            <div id="selfHelpWrap"></div>
-
-                            <div>
-                                <div class="group-title">Fills</div>
-                                <div class="field-hint">Els fills de 25 anys o més només compten si tenen discapacitat.</div>
-                                <div id="childrenList" class="person-list"></div>
-                                <button type="button" class="add-btn" onclick="addChild()">+ Afegir fill</button>
-                            </div>
-
-                            <div>
-                                <div class="group-title">Ascendents a càrrec</div>
-                                <div class="field-hint">Un pare/mare/avi compta si té 65 anys o més o té discapacitat.</div>
-                                <div id="ascendantsList" class="person-list"></div>
-                                <button type="button" class="add-btn" onclick="addAscendant()">+ Afegir ascendent</button>
-                            </div>
-                        </div>
-                    </details>
+                    <div id="profileFields" style="display:contents"></div>
 
                     <button type="submit" class="btn-submit">Calcular</button>
                 </form>
@@ -124,6 +39,7 @@
                     Omple el formulari i prem <strong>Calcular</strong> per veure els resultats aquí.
                 </div>
                 <div id="result" aria-live="polite"></div>
+                <div id="walkthrough"></div>
                 <div id="plots"></div>
             </div>
 
@@ -133,80 +49,13 @@
     <footer class="site-footer" id="site-footer"></footer>
 
     <script src="shared.js"></script>
+    <script src="profile.js"></script>
+    <script src="walkthrough.js"></script>
     <script>
-    initGrupSelect('grup_cotitzacio',
-        () => readMoney('gross') + (readMoney('retribucio_en_especie_ann') || 0),
-        ['gross', 'retribucio_en_especie_ann']);
-    bindPaguesPills('paguesPills', 'n_pagues');
-    initMoneyInputs();
-    bindPills('regionPills', 'region');
-    bindPills('agePills', 'age');
-    bindPills('contractTypePills', 'contract_type');
-
-    // ── Situació familiar (agrupada per persona) ─────────────────────────────
-    // Cada selector envia el valor representatiu del tram que realment compta.
-    const DISAB_OPTS = [['Cap', 0], ['33–64%', 50], ['65% o més', 80]];
-    const CHILD_AGE  = [['Menys de 3', 1], ['3–24 anys', 10], ['25 o més', 30]];
-    const ASC_AGE    = [['Menys de 65', 60], ['65–74', 70], ['75 o més', 80]];
-
-    function pillGroup(opts, current, makeCall) {
-        return '<div class="pill-group">' + opts.map(([label, val]) =>
-            `<button type="button" aria-pressed="${current === val}" class="pill${current === val ? ' selected' : ''}" onclick="${makeCall(val)}">${label}</button>`
-        ).join('') + '</div>';
-    }
-    // L'ajuda només es demana al tram 33–64%; a 65%+ ja s'aplica automàticament.
-    function helpToggle(checked, call) {
-        return `<label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} onchange="${call}"><span class="slider"></span>Necessita ajuda de tercers o mobilitat reduïda</label>`;
-    }
-    function personCard(kind, m, i, ageOpts, label) {
-        const help = m.disability === 50 ? helpToggle(m.help, `set_${kind}(${i},'help',this.checked)`) : '';
-        return `<div class="person-card">
-            <div class="person-card-head"><span>${label} ${i + 1}</span>
-                <button type="button" class="remove-btn" aria-label="Eliminar ${label.toLowerCase()} ${i + 1}" onclick="remove_${kind}(${i})">&times;</button></div>
-            <div class="mini-row"><span class="mini-label">Edat</span>${pillGroup(ageOpts, m.age, v => `set_${kind}(${i},'age',${v})`)}</div>
-            <div class="mini-row"><span class="mini-label">Discapacitat</span>${pillGroup(DISAB_OPTS, m.disability, v => `set_${kind}(${i},'disability',${v})`)}</div>
-            ${help}
-        </div>`;
-    }
-    function updateMember(arr, render, i, key, val) {
-        arr[i][key] = val;
-        if (key === 'disability' && val !== 50) arr[i].help = false;
-        render();
-    }
-
-    // Discapacitat pròpia
-    let selfDisability = 0, selfHelp = false;
-    function renderSelf() {
-        document.getElementById('selfDisabilityGroup').innerHTML =
-            pillGroup(DISAB_OPTS, selfDisability, v => `setSelfDisability(${v})`);
-        document.getElementById('selfHelpWrap').innerHTML =
-            selfDisability === 50 ? helpToggle(selfHelp, 'setSelfHelp(this.checked)') : '';
-    }
-    window.setSelfDisability = function(v) { selfDisability = v; if (v !== 50) selfHelp = false; renderSelf(); };
-    window.setSelfHelp = function(v) { selfHelp = v; };
-    renderSelf();
-
-    // Fills
-    let children = [];
-    function renderChildren() {
-        document.getElementById('childrenList').innerHTML =
-            children.map((m, i) => personCard('child', m, i, CHILD_AGE, 'Fill')).join('');
-    }
-    window.set_child = function(i, key, val) { updateMember(children, renderChildren, i, key, val); };
-    window.remove_child = function(i) { children.splice(i, 1); renderChildren(); };
-    window.addChild = function() { children.push({ age: 10, disability: 0, help: false }); renderChildren(); };
-    renderChildren();
-
-    // Ascendents
-    let ascendants = [];
-    function renderAscendants() {
-        document.getElementById('ascendantsList').innerHTML =
-            ascendants.map((m, i) => personCard('asc', m, i, ASC_AGE, 'Ascendent')).join('');
-    }
-    window.set_asc = function(i, key, val) { updateMember(ascendants, renderAscendants, i, key, val); };
-    window.remove_asc = function(i) { ascendants.splice(i, 1); renderAscendants(); };
-    window.addAscendant = function() { ascendants.push({ age: 70, disability: 0, help: false }); renderAscendants(); };
-    renderAscendants();
+    Profile.mount(document.getElementById('profileFields'), {
+        grossForGroup: () => readMoney('gross'),
+        watchIds: ['gross'],
+    });
 
     function renderResult(r, npagues) {
         const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
@@ -229,7 +78,7 @@
                 ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
                 ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
                 ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
-                ['Base imposable', fmtEur(r.base_imponible), 'total'],
+                ['Base de retenció', fmtEur(r.base_imponible), 'total'],
                 ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
                 ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
                 ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
@@ -256,25 +105,14 @@
     document.getElementById('irpfForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const seq = ++requestSeq;
-        const data = {
-            gross: readMoney('gross'),
-            region: document.getElementById('region').value,
-            n_pagues: parseInt(document.getElementById('n_pagues').value),
-            pagues_prorratejades: true,
-            retribucio_en_especie_ann: readMoney('retribucio_en_especie_ann') || 0,
-            grup_cotitzacio: document.getElementById('grup_cotitzacio').value,
-            contract_type: document.getElementById('contract_type').value,
-            other_deductions: readMoney('other_deductions') || 0,
-            age: parseInt(document.getElementById('age').value),
-            disability_percent_self: selfDisability,
-            disability_self_help: selfHelp,
-            children: children.map(c => ({ age: c.age, disability: c.disability, needs_help: c.disability === 50 ? c.help : false })),
-            ascendants: ascendants.map(a => ({ age: a.age, disability: a.disability, needs_help: a.disability === 50 ? a.help : false }))
-        };
+        const profile = Profile.read();
+        const data = { gross: readMoney('gross'), ...profile };
 
         const resultEl = document.getElementById('result');
         const plotsEl = document.getElementById('plots');
+        const wtEl = document.getElementById('walkthrough');
         document.getElementById('resultPlaceholder').style.display = 'none';
+        wtEl.innerHTML = '';
         showLoading(resultEl);
         plotsEl.innerHTML = '';
         const restoreButton = setSubmitting(this);
@@ -283,6 +121,7 @@
             const result = await postApi('/api/calculate', data);
             if (seq !== requestSeq) return; // ja hi ha una petició més nova
             resultEl.innerHTML = renderResult(result, data.n_pagues);
+            if (result.walkthrough) Walkthrough.render(wtEl, result.walkthrough, null, { region: profile.region });
 
             if (Array.isArray(result.plots)) {
                 plotsEl.innerHTML = result.plots

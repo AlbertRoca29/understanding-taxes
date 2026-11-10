@@ -31,37 +31,8 @@
                             <input type="text" inputmode="decimal" data-money autocomplete="off" id="sou_nou" name="sou_nou" required placeholder="Ex: 27.000">
                         </div>
                     </div>
-                    <div class="form-row">
-                        <label>Nombre de pagues <span class="req">*</span></label>
-                        <div class="pill-group" id="paguesPills">
-                            <button type="button" aria-pressed="false" class="pill" data-value="12">12</button>
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="14">14</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="other">Altre</button>
-                            <input type="number" id="n_pagues" name="n_pagues" class="pagues-other" required min="1" max="15" step="1" value="14" placeholder="Nº" aria-label="Nombre de pagues" hidden>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <label for="grup_cotitzacio">Grup de cotització SS <span class="req">*</span></label>
-                        <select id="grup_cotitzacio" name="grup_cotitzacio" required></select>
-                    </div>
-                    <div class="form-row">
-                        <label>Tipus de contracte</label>
-                        <div class="pill-group" id="contractTypePills">
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="indefinite">Indefinit</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="temporary">Temporal</button>
-                        </div>
-                        <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
-                    </div>
-                    <div class="form-row">
-                        <label>La teva discapacitat</label>
-                        <div class="pill-group" id="disabilitySelfPills">
-                            <button type="button" aria-pressed="true" class="pill selected" data-value="0">Cap</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="50">33–64%</button>
-                            <button type="button" aria-pressed="false" class="pill" data-value="80">65% o més</button>
-                        </div>
-                        <input type="hidden" id="disability_self" value="0">
-                        <div class="field-hint">Fills, ascendents i edat no modifiquen l'increment: el seu efecte es cancel·la entre el sou actual i el nou.</div>
-                    </div>
+                    <div id="profileFields" style="display:contents"></div>
+
                     <button type="submit" class="btn-submit">Calcular increment</button>
                 </form>
             </div>
@@ -72,6 +43,7 @@
                     Introdueix els sous i prem <strong>Calcular increment</strong> per veure la diferència neta.
                 </div>
                 <div id="result" aria-live="polite"></div>
+                <div id="walkthrough"></div>
                 <div id="plots"></div>
             </div>
 
@@ -81,17 +53,17 @@
     <footer class="site-footer" id="site-footer"></footer>
 
     <script src="shared.js"></script>
+    <script src="profile.js"></script>
+    <script src="walkthrough.js"></script>
     <script>
     // Amb dos sous, mana el més baix: és on el grup pot afectar.
-    initGrupSelect('grup_cotitzacio',
-        () => { const v = ['sou_actual', 'sou_nou'].map(readMoney).filter(Number.isFinite); return v.length ? Math.min(...v) : NaN; },
-        ['sou_actual', 'sou_nou']);
-    bindPaguesPills('paguesPills', 'n_pagues');
-    initMoneyInputs();
-    bindPills('contractTypePills', 'contract_type');
-    bindPills('disabilitySelfPills', 'disability_self');
+    Profile.mount(document.getElementById('profileFields'), {
+        grossForGroup: () => { const v = ['sou_actual', 'sou_nou'].map(readMoney).filter(Number.isFinite); return v.length ? Math.min(...v) : NaN; },
+        watchIds: ['sou_actual', 'sou_nou'],
+    });
 
     function renderResult(r, nPagues) {
+        const prev = r.previous, now = r.new;
         return resultHero(`Increment net per paga (${nPagues})`, fmtEur(r.increment_annual_net / nPagues),
                 nPagues !== 12 ? `Equivalent mensual (÷12): ${fmtEur(r.increment_monthly_net)}` : '')
             + resultSection("Resum de l'increment", [
@@ -99,7 +71,11 @@
                 ['− SS addicional', '−' + fmtEur(r.increment_annual_ss), 'minus'],
                 ['− IRPF addicional', '−' + fmtEur(r.increment_annual_irpf), 'minus'],
                 ['Increment net anual', fmtEur(r.increment_annual_net), 'total'],
-            ]);
+            ])
+            + (prev && now ? resultSection('Abans → després', [
+                ['Tipus de retenció', `${fmtPct(prev.tipo_retencio)} → <b>${fmtPct(now.tipo_retencio)}</b>`],
+                [`Sou net per paga (${nPagues})`, `${fmtEur(prev.sou_net_per_paga)} → <b>${fmtEur(now.sou_net_per_paga)}</b>`],
+            ]) : '');
     }
 
     let requestSeq = 0;
@@ -108,12 +84,15 @@
         const seq = ++requestSeq;
         const souActual = readMoney('sou_actual');
         const souNou = readMoney('sou_nou');
-        const nPagues = parseInt(document.getElementById('n_pagues').value);
+        const profile = Profile.read();
+        const nPagues = profile.n_pagues;
 
         const resultEl = document.getElementById('result');
         const plotsEl = document.getElementById('plots');
+        const wtEl = document.getElementById('walkthrough');
         document.getElementById('resultPlaceholder').style.display = 'none';
         plotsEl.innerHTML = '';
+        wtEl.innerHTML = '';
 
         if (isNaN(souActual) || isNaN(souNou) || souNou <= souActual) {
             showError(resultEl, 'El nou sou ha de ser superior al sou actual.');
@@ -124,20 +103,12 @@
         const restoreButton = setSubmitting(this);
 
         try {
-            const result = await postApi('/api/increment', {
-                previous_gross: souActual,
-                new_gross: souNou,
-                n_pagues: nPagues,
-                pagues_prorratejades: false,
-                retribucio_en_especie_ann: 0,
-                grup_cotitzacio: document.getElementById('grup_cotitzacio').value,
-                contract_type: document.getElementById('contract_type').value,
-                other_deductions: 0,
-                age: 30,
-                disability_self: parseInt(document.getElementById('disability_self').value)
-            });
+            const result = await postApi('/api/increment', { previous_gross: souActual, new_gross: souNou, ...profile });
             if (seq !== requestSeq) return; // ja hi ha una petició més nova
             resultEl.innerHTML = renderResult(result, nPagues);
+            if (result.new?.walkthrough) {
+                Walkthrough.render(wtEl, result.new.walkthrough, result.previous.walkthrough, { region: profile.region });
+            }
             if (result.increment_pie) {
                 plotsEl.innerHTML = chartCard(result.increment_pie, "Gràfic de l'increment", 'pie');
             }

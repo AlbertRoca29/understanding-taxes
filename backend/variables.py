@@ -130,3 +130,10 @@ NUM_ASCENDIENTES_APLICABLES = 0
 HAS_DISABILITY = False
 DISABILITY_PERCENT = 0
 NEEDS_HELP_THIRD_PARTY = False
+
+# Taula 1 – Límits excloents de l'obligació de retenir (art. 81 RIRPF, RD 142/2024).
+# Situació familiar 3 (general) per nombre de descendents: 0, 1, 2 o més.
+EXCLUSION_LIMITS_SITUACION3 = [Decimal("15876.00"), Decimal("16342.00"), Decimal("16867.00")]
+
+# Reducció per més de dos descendents (base per calcular el tipus de retenció)
+REDUCTION_MORE_THAN_TWO_CHILDREN = Decimal("600.00")

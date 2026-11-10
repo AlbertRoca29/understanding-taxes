@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D · Live walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<style>
+  .main { flex: 1; overflow-y: auto; padding: 24px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(0,0,0,.06); padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; } .card h2 small { color: var(--muted); font-weight: 500; }
+  .wf { display: grid; grid-template-columns: 170px 1fr 110px; gap: 6px 12px; align-items: center; margin-top: 12px; font-size: 13px; }
+  .wf .lab { text-align: right; color: #444; } .wf .lab code { font-size: 11px; color: var(--muted); display: block; }
+  .wf .track { position: relative; height: 22px; }
+  .wf .bar { position: absolute; top: 0; height: 100%; border-radius: 4px; transition: all .35s; }
+  .wf .num { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+  .neg { background: repeating-linear-gradient(135deg, #f6b6b2 0 6px, #fbd3d0 6px 12px); }
+  .tot { background: var(--primary); } .start { background: #2f6fd6; } .min { background: #3aa76d; }
+  .brk { display: flex; height: 34px; border-radius: 6px; overflow: hidden; margin: 6px 0 2px; }
+  .brk div { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; font-weight: 600; white-space: nowrap; overflow: hidden; transition: flex .35s; }
+  .rowlab { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .big { font-size: 34px; font-weight: 800; color: var(--primary); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; margin-top: 8px; } .kv span:nth-child(even) { font-family: var(--mono); text-align: right; }
+  .f label { display: block; font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .person { background: var(--bg); border-radius: 8px; padding: 6px; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; align-items: center; font-size: 12px; }
+  .person .row2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; align-items: center; }
+  .person input, .person select { padding: 4px 6px; font-size: 12px; background: #fff; }
+  .person .ck { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 11px; color: #444; }
+  .sub { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+  .x { cursor: pointer; color: var(--muted); padding: 0 4px; }
+  .pill { display: inline-block; border-radius: 99px; padding: 2px 9px; font-size: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side f">
+    <h3>What it is</h3>
+    <div>The algorithm as a <b>money story</b> for one concrete person. Change anything and every step re-computes, so you see <i>why</i> the rate ends where it does.</div>
+    <h3>Profile</h3>
+    <label>Gross annual pay (RETRIB) €</label><input type="number" id="RETRIB" value="30000" step="500">
+    <label><input type="checkbox" id="autoss" checked style="width:auto"> Social security = 6,35 % (approx.)</label>
+    <input type="number" id="COTIZACIONES" value="1905" step="50">
+    <label>Birth year</label><input type="number" id="ANYOPER" value="1990">
+    <label>Family situation</label><select id="SITUFAM"><option value="3">3 – general</option><option value="2">2 – spouse earns ≤ 1.500 €</option><option value="1">1 – single parent</option></select>
+    <label>Status</label><select id="SITUPER"><option>ACTIVO</option><option>PENSIONISTA</option><option>DESEMPLEADO</option></select>
+    <label>Contract</label><select id="CONTRATO"><option>GENERAL</option><option value="INFERIORANYO">INFERIOR A UN AÑO</option></select>
+    <label>Your disability</label><select id="DISCAPER"><option value="NO">None</option><option value="33">33–65 %</option><option value="65">≥ 65 %</option></select>
+    <label><input type="checkbox" id="MOVILPER" style="width:auto"> Reduced mobility / needs assistance</label>
+    <h3>Divorce payments</h3>
+    <label>Spousal pension paid (CONYUGE) €/year</label><input type="number" id="CONYUGE" value="0" step="100" min="0">
+    <label>Child support paid (ANUALIDADES) €/year</label><input type="number" id="ANUALIDADES" value="0" step="100" min="0">
+    <h3>Children <button class="btn" id="addKid" style="float:right;padding:1px 8px">+</button></h3>
+    <div id="kids"></div>
+    <h3>Ascendants <button class="btn" id="addAsc" style="float:right;padding:1px 8px">+</button></h3>
+    <div id="ascs"></div>
+  </aside>
+  <main class="main"><div class="wrap" id="out"></div></main>
+</div>
+<script src="data.js"></script><script src="calc.js"></script><script src="nav.js"></script>
+<script>
+let kids = [{ year: 2019, entero: true, disc: 'NO' }, { year: 2024, entero: true, disc: 'NO' }], ascs = [];
+const $ = id => document.getElementById(id);
+const eur = v => (+v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
+const BCOL = ['#f0a8a4', '#e8746e', '#e2231a', '#b81b13', '#7d120d', '#4a0a07'];
+
+const DISC = d => `<option value="NO" ${d === 'NO' ? 'selected' : ''}>no disab.</option><option value="33" ${d === '33' ? 'selected' : ''}>33–65 %</option><option value="65" ${d === '65' ? 'selected' : ''}>≥ 65 %</option>`;
+function people() {
+  $('kids').innerHTML = kids.map((k, i) => `<div class="person">
+    <input type="number" value="${k.year}" title="birth year" data-k="${i}" data-f="year">
+    <select data-k="${i}" data-f="entero"><option value="1" ${k.entero ? 'selected' : ''}>whole</option><option value="0" ${k.entero ? '' : 'selected'}>half (shared)</option></select><span class="x" data-dk="${i}">✕</span>
+    <div class="row2"><select data-k="${i}" data-f="disc">${DISC(k.disc)}</select>
+    <label class="ck"><input type="checkbox" data-k="${i}" data-f="movil" ${k.movil ? 'checked' : ''}>mobility</label>
+    <input type="number" placeholder="adopted in" title="adoption / foster year (optional)" value="${k.adopt || ''}" data-k="${i}" data-f="adopt"></div></div>`).join('') || '<i style="color:#999">none</i>';
+  $('ascs').innerHTML = ascs.map((a, i) => `<div class="person">
+    <input type="number" value="${a.year}" title="birth year" data-a="${i}" data-f="year">
+    <input type="number" min="1" value="${a.conv}" title="number of descendants the ascendant lives with" data-a="${i}" data-f="conv"><span class="x" data-da="${i}">✕</span>
+    <div class="row2"><select data-a="${i}" data-f="disc">${DISC(a.disc)}</select>
+    <label class="ck"><input type="checkbox" data-a="${i}" data-f="movil" ${a.movil ? 'checked' : ''}>mobility</label><span></span></div></div>`).join('') || '<i style="color:#999">none</i>';
+  const val = e => e.type === 'checkbox' ? e.checked : e.dataset.f === 'entero' ? e.value === '1' : e.dataset.f === 'disc' ? e.value : (+e.value || 0);
+  document.querySelectorAll('[data-k]').forEach(e => e.onchange = () => { kids[e.dataset.k][e.dataset.f] = val(e); go(); });
+  document.querySelectorAll('[data-a]').forEach(e => e.onchange = () => { const v = val(e); ascs[e.dataset.a][e.dataset.f] = e.dataset.f === 'conv' ? Math.max(1, v) : v; go(); });
+  document.querySelectorAll('[data-dk]').forEach(e => e.onclick = () => { kids.splice(e.dataset.dk, 1); people(); go(); });
+  document.querySelectorAll('[data-da]').forEach(e => e.onclick = () => { ascs.splice(e.dataset.da, 1); people(); go(); });
+}
+$('addKid').onclick = () => { kids.push({ year: 2015, entero: true, disc: 'NO' }); people(); go(); };
+$('addAsc').onclick = () => { ascs.push({ year: 1950, conv: 1, disc: 'NO', movil: false }); people(); go(); };
+
+function brackets(x) {
+  const S = IRPFcalc.SCALE, out = [];
+  for (let i = 0; i < S.length; i++) { const lo = S[i][0], hi = S[i + 1] ? S[i + 1][0] : Infinity; if (x > lo) out.push({ i, amt: Math.min(x, hi) - lo, rate: S[i][2] }); }
+  return out;
+}
+function brkBar(x, max) {
+  const b = brackets(x);
+  return `<div class="brk" style="width:${Math.max(4, x / max * 100)}%">${b.map(s => `<div style="flex:${s.amt};background:${BCOL[s.i]}" title="${eur(s.amt)} × ${s.rate * 100} %">${(s.rate * 100).toFixed(0)} %</div>`).join('')}</div>`;
+}
+
+function go() {
+  if ($('autoss').checked) $('COTIZACIONES').value = (+$('RETRIB').value * 0.0635).toFixed(2);
+  const p = { RETRIB: +$('RETRIB').value, COTIZACIONES: +$('COTIZACIONES').value, ANYOPER: +$('ANYOPER').value, SITUFAM: +$('SITUFAM').value,
+    SITUPER: $('SITUPER').value, CONTRATO: $('CONTRATO').value, DISCAPER: $('DISCAPER').value, MOVILPER: $('MOVILPER').checked,
+    CONYUGE: +$('CONYUGE').value || 0, ANUALIDADES: +$('ANUALIDADES').value || 0,
+    children: kids.map(k => ({ ...k })), ascendants: ascs.map(a => ({ ...a })) };
+  const v = IRPFcalc.run(p), R = p.RETRIB;
+  // waterfall
+  const steps = [
+    ['Gross pay', 'RETRIB', R, 'start'],
+    ['Social security', 'COTIZACIONES', -p.COTIZACIONES],
+    ['Other expenses', 'OTROSGASTOS', -v.OTROSGASTOS, null, v.INCREGASDISTRA ? `2.000 + ${eur(v.INCREGASDISTRA)} disabled worker` : '2.000 flat'],
+    ['Art. 20 reduction', 'RED20', -v.RED20, null, v.RED20 ? 'net income ≤ 19.747,50' : 'net income too high'],
+    ['Personal reductions', 'REDU', -(v.RNTREDU - v.BASE), null, [v.PENSION && 'pensioner 600', v.DESEM && 'unemployed 1.200', v.HIJOS && '3+ children 600', p.CONYUGE && 'spousal pension ' + eur(p.CONYUGE)].filter(Boolean).join(' · ') || 'none apply'],
+    ['Withholding base', 'BASE', v.BASE, 'tot'],
+  ];
+  let run = 0;
+  const wf = steps.map(([l, c, val, t, sub]) => {
+    let left, w;
+    if (t) { left = 0; w = val; run = val; } else { w = -val; run += val; left = run; }
+    return `<div class="lab">${l}<code>${c}${sub ? ' · ' + sub : ''}</code></div><div class="track"><div class="bar ${t || 'neg'}" style="left:${left / R * 100}%;width:${Math.max(0, w) / R * 100}%"></div></div><div class="num">${t ? '' : '− '}${eur(Math.abs(val))}</div>`;
+  }).join('');
+
+  const minParts = [
+    ['You', v.MINCON, v.PER65 ? `5.550 + ${v.PER75 ? '1.150 + 1.400 (≥ 75)' : '1.150 (≥ 65)'}` : '5.550 general'],
+    ['Children', v.MINDESG, 'by birth order × whole/half'],
+    ['Under 3 / adopted', v.MINDES3, '2.800 each × whole/half'],
+    ['Ascendants', v.MINAS, '1.150 (+1.400 ≥ 75) ÷ people sharing'],
+    ['Your disability', v.MINDISC, '3.000 / 9.000 (+3.000 assistance)'],
+    ['Family disability', v.MDISDEAS, 'children × weight, ascendants ÷ sharing'],
+  ].filter(x => x[1] > 0);
+  const anu = p.ANUALIDADES > 0 && v.BASE - p.ANUALIDADES > 0;
+  const maxB = Math.max(v.BASE, v.MINPERFA + (anu ? 1980 : 0), 1);
+  const preCap = Math.max(0, v.CUOTA1 - v.CUOTA2);
+  const capped = typeof v.LIMITE === 'number' && preCap > v.LIMITE && !v.EXENTOS;
+
+  $('out').innerHTML = `
+  <div class="card"><h2>1 · From gross pay to the withholding base <small>· sections 3–5</small></h2>
+    <div style="font-size:13px;color:#555">Social security and a flat 2.000 € are deducted; low earners get the art. 20 reduction (up to 7.302 €); pensioners, the unemployed and families with 3+ kids get a bit more.</div>
+    <div class="wf">${wf}</div></div>
+
+  <div class="card"><h2>2 · The tax-free minimum <small>· section 6 · MINPERFA = ${eur(v.MINPERFA)}</small></h2>
+    <div class="wf">${minParts.map(([l, x, sub]) => `<div class="lab">${l}<code>${sub}</code></div><div class="track"><div class="bar min" style="left:0;width:${x / maxB * 100}%"></div></div><div class="num">${eur(x)}</div>`).join('')}</div>
+    ${v.MINDES ? `<div class="rowlab">Children: 1st 2.400 · 2nd 2.700 · 3rd 4.000 · 4th+ 4.500, +2.800 if under 3 — halved when shared with the other parent.</div>` : ''}</div>
+
+  <div class="card"><h2>3 · Is this salary exempt? <small>· section 7, Table 1</small></h2>
+    <div class="kv"><span>Limit for situation ${p.SITUFAM} with ${Math.min(v.NUMDES, 2)}${v.NUMDES >= 2 ? '+' : ''} children (+ pensioner/unemployed extra)</span><span>${typeof v.TABLA1 === 'number' ? eur(v.TABLA1 + v.PENSION + v.DESEM) : 'n/a'}</span>
+    <span>Your gross pay</span><span>${eur(R)}</span></div>
+    <div style="margin-top:8px"><span class="pill" style="background:${v.EXENTOS ? '#e5f6ec;color:#1f7a47' : '#fff1f0;color:#b81b13'}">${v.EXENTOS ? 'Yes → no withholding (cuota = 0)' : 'No → continue to the scale'}</span></div></div>
+
+  <div class="card"><h2>4 · Apply the scale twice <small>· section 8 · CUOTA = scale(BASE) − scale(MINPERFA)</small></h2>
+    ${anu ? `<div class="rowlab">Child support splits the base: scale(BASE − ANUALIDADES ${eur(v.BASE - p.ANUALIDADES)}) + scale(ANUALIDADES ${eur(p.ANUALIDADES)}) = <b>${eur(v.CUOTA1)}</b> — both halves restart at 19 %</div>${brkBar(v.BASE - p.ANUALIDADES, maxB)}${brkBar(p.ANUALIDADES, maxB)}`
+      : `<div class="rowlab">scale(BASE ${eur(v.BASE)}) = <b>${eur(v.CUOTA1)}</b></div>${brkBar(v.BASE, maxB)}`}
+    <div class="rowlab">scale(MINPERFA ${eur(v.MINPERFA)}${anu ? ' + 1.980' : ''}) = <b>${eur(v.CUOTA2)}</b> — the minimum is “taxed” at the lowest brackets and given back</div>${brkBar(v.MINPERFA + (anu ? 1980 : 0), maxB)}
+    <div class="kv"><span>Difference</span><span>${eur(preCap)}</span>
+    ${typeof v.LIMITE === 'number' ? `<span>43 % cap (pay ≤ 35.200): 0,43 × (pay − Table 1 limit)</span><span>${eur(Math.max(0, v.LIMITE))}${capped ? ' ← applies' : ''}</span>` : ''}
+    <span><b>CUOTA</b></span><span><b>${eur(v.CUOTA)}</b></span></div></div>
+
+  <div class="card"><h2>5 · The rate <small>· section 9</small></h2>
+    <div class="kv"><span>CUOTA / RETRIB × 100, truncated to 2 decimals</span><span>${v.TIPORAW.toFixed(2)} %</span>
+    ${v.TIPO !== v.TIPORAW ? `<span>Contract floor (${p.CONTRATO === 'ESPECIAL' ? '15 %' : '2 %'})</span><span>${v.TIPO.toFixed(2)} %</span>` : ''}</div>
+    <div style="display:flex;gap:40px;margin-top:12px;align-items:baseline"><div><div class="rowlab">TIPO</div><div class="big">${v.TIPO.toFixed(2)} %</div></div>
+    <div><div class="rowlab">IMPORTE (per year)</div><div class="big" style="font-size:26px">${eur(v.IMPORTE)}</div></div>
+    <div><div class="rowlab">per month (×14)</div><div class="big" style="font-size:22px;color:#555">${eur(v.IMPORTE / 14)}</div></div></div></div>`;
+}
+document.querySelectorAll('aside input, aside select').forEach(e => e.addEventListener('input', go));
+people(); go();
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C · Zoomable map</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  svg { width: 100%; height: 100%; display: block; background: var(--bg); cursor: grab; }
+  .frame rect.bg { fill: #fff; stroke: #e0e0e0; }
+  .frame .num { font-size: 64px; font-weight: 800; fill: #f3d3d1; }
+  .frame .ttl { font-size: 22px; font-weight: 700; fill: #b81b13; }
+  .frame .sub { font-size: 13px; fill: #777; }
+  .card rect { stroke-width: 1.5; rx: 8; }
+  .card .nm { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+  .card .lb { font-size: 11px; fill: #555; }
+  .card .fx { font-family: var(--mono); font-size: 9.5px; fill: #333; white-space: pre; }
+  .card .vl { font-family: var(--mono); font-size: 10px; font-weight: 700; fill: #b81b13; }
+  .card { cursor: pointer; }
+  .link { fill: none; stroke: #c6c6c6; stroke-width: 1.2; }
+  .slink { fill: none; stroke: #e2231a; stroke-opacity: .16; }
+  /* level of detail */
+  .lod0 .card text, .lod0 .link { display: none; }
+  .lod0 .card rect { opacity: .55; }
+  .lod1 .slink, .lod2 .slink { display: none; }
+  .lod1 .card .fx, .lod1 .card .vl { display: none; }
+  .lod1 .frame .num, .lod2 .frame .num { opacity: .35; }
+  .faded { opacity: .1; }
+  .link.up { stroke: #e2231a; stroke-width: 2.5; }
+  .link.down { stroke: #2f6fd6; stroke-width: 2.5; }
+  .card.sel rect { stroke: #1a1a1a !important; stroke-width: 3.5; }
+  .lodbadge { position: absolute; top: 12px; right: 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+  .lodbadge b { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <h3>What it is</h3>
+    <div>A <b>map</b> of the algorithm with <b>semantic zoom</b>: far away you see the 11 sections and how money flows between them; zoom in and each section shows its variables; zoom further and every box reveals its exact formula and an example value.</div>
+    <h3>Jump to section</h3>
+    <div id="jump"></div>
+    <h3>Detail</h3>
+    <div id="detail"></div>
+    <h3>Branches shown</h3>
+    <div id="topics"></div>
+  </aside>
+  <main class="canvas"><svg id="svg"></svg>
+    <div class="lodbadge" id="lod"></div>
+    <div class="hint">scroll = zoom · drag = pan · click a box = zoom to it & trace</div>
+    <div class="floating"><button class="btn" id="fit">Overview</button></div>
+  </main>
+</div>
+<script src="data.js"></script><script src="calc.js"></script><script src="nav.js"></script>
+<script>
+const values = IRPFcalc.run({ children: [{ year: 2020, entero: true, disc: 'NO' }, { year: 2024, entero: true, disc: 'NO' }] });
+const KC = { input: ['#2f6fd6', '#eaf1fd'], calc: ['#bbbbbb', '#ffffff'], const: ['#8a8a8a', '#f1f1f1'], decision: ['#c77c00', '#fff4dd'], output: ['#e2231a', '#fff1f0'] };
+const CW = 250, GAP = 26, COLGAP = 150, PAD = 22, HEAD = 110;
+const svg = d3.select('#svg'), root = svg.append('g'), detail = document.getElementById('detail');
+let selected = null, pos = {}, frames = [];
+
+function wrapLines(s, max) {
+  return s.split('\n').flatMap(line => {
+    const out = []; let cur = '';
+    for (const w of line.split(' ')) { if ((cur + ' ' + w).trim().length > max) { if (cur) out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
+    if (cur || !out.length) out.push(cur); return out;
+  });
+}
+
+function layout() {
+  pos = {}; frames = [];
+  const vis = IRPF.nodes.filter(Topics.visible);
+  let x = 0, col = 0;
+  for (const s of IRPF.stages) {
+    const ns = vis.filter(n => n.stage === s.id);
+    if (!ns.length) continue;
+    // inputs get 2 columns, others 1
+    const cols = s.id === 'in' ? 2 : 1;
+    const ys = Array(cols).fill(HEAD + PAD);
+    ns.forEach((n, i) => {
+      const c = cols === 1 ? 0 : ys.indexOf(Math.min(...ys));
+      const fx = n.f ? wrapLines(n.f, 40) : (n.desc ? wrapLines(n.desc, 40) : []);
+      const h = 44 + fx.length * 12 + (n.id in values ? 16 : 0) + 8;
+      pos[n.id] = { x: x + PAD + c * (CW + GAP), y: ys[c], w: CW, h, n, fx };
+      ys[c] += h + GAP;
+    });
+    const w = PAD * 2 + cols * CW + (cols - 1) * GAP;
+    frames.push({ s, x, y: 0, w, h: Math.max(...ys) + PAD - GAP, count: ns.length });
+    x += w + COLGAP;
+  }
+}
+
+function link(a, b) {
+  const sx = a.x + a.w, sy = a.y + 22, tx = b.x, ty = b.y + 22;
+  if (tx > sx) { const m = (tx - sx) / 2; return `M${sx},${sy} C${sx + m},${sy} ${tx - m},${ty} ${tx},${ty}`; }
+  // same column (or backwards): loop on the right edge
+  const rx = Math.max(a.x + a.w, b.x + b.w) + 40;
+  return `M${sx},${sy} C${rx},${sy} ${rx},${ty} ${b.x + b.w},${ty}`;
+}
+
+function draw() {
+  layout();
+  root.selectAll('*').remove();
+  // stage-level flows (aggregated, for far zoom)
+  const agg = {};
+  for (const id in pos) for (const d of pos[id].n.deps) if (pos[d]) {
+    const a = pos[d].n.stage, b = pos[id].n.stage; if (a === b) continue;
+    agg[a + '>' + b] = (agg[a + '>' + b] || 0) + 1;
+  }
+  const F = Object.fromEntries(frames.map(f => [f.s.id, f]));
+  root.append('g').selectAll('path').data(Object.entries(agg)).join('path').attr('class', 'slink')
+    .attr('stroke-width', ([, c]) => 4 + c * 3)
+    .attr('d', ([k]) => { const [a, b] = k.split('>').map(i => F[i]); const sy = a.y + a.h / 2, ty = b.y + b.h / 2, sx = a.x + a.w, tx = b.x;
+      if (tx > sx) { const m = (tx - sx) / 2; return `M${sx},${sy} C${sx + m},${sy} ${tx - m},${ty} ${tx},${ty}`; }
+      return `M${a.x + a.w / 2},${a.y} C${a.x + a.w / 2},${-400} ${b.x + b.w / 2},${-400} ${b.x + b.w / 2},${b.y}`; });
+
+  const fr = root.append('g').selectAll('g').data(frames).join('g').attr('class', 'frame').attr('transform', f => `translate(${f.x},${f.y})`);
+  fr.append('rect').attr('class', 'bg').attr('width', f => f.w).attr('height', f => f.h).attr('rx', 16);
+  fr.append('text').attr('class', 'num').attr('x', 16).attr('y', 70).text(f => f.s.n);
+  fr.append('text').attr('class', 'ttl').attr('x', 70).attr('y', 44).text(f => f.s.title);
+  fr.append('text').attr('class', 'sub').attr('x', 70).attr('y', 66).text(f => f.s.sub.length > 44 ? f.s.sub.slice(0, 42) + '…' : f.s.sub);
+  fr.append('text').attr('class', 'sub').attr('x', 70).attr('y', 86).text(f => `${f.count} variables`);
+
+  const links = [];
+  for (const id in pos) for (const d of pos[id].n.deps) if (pos[d]) links.push({ s: d, t: id });
+  root.append('g').selectAll('path').data(links).join('path').attr('class', 'link').attr('d', l => link(pos[l.s], pos[l.t]));
+
+  const cards = root.append('g').selectAll('g').data(Object.values(pos)).join('g').attr('class', 'card').attr('transform', p => `translate(${p.x},${p.y})`)
+    .on('click', (e, p) => { e.stopPropagation(); select(p.n.id, true); });
+  cards.append('rect').attr('width', p => p.w).attr('height', p => p.h).attr('fill', p => KC[p.n.kind][1]).attr('stroke', p => KC[p.n.kind][0]);
+  cards.append('text').attr('class', 'nm').attr('x', 10).attr('y', 18).text(p => p.n.name.length > 34 ? p.n.name.slice(0, 32) + '…' : p.n.name);
+  cards.append('text').attr('class', 'lb').attr('x', 10).attr('y', 34).text(p => p.n.label);
+  cards.each(function (p) {
+    const g = d3.select(this);
+    p.fx.forEach((l, i) => g.append('text').attr('class', 'fx').attr('x', 10).attr('y', 52 + i * 12).text(l).attr('xml:space', 'preserve'));
+    if (p.n.id in values) g.append('text').attr('class', 'vl').attr('x', 10).attr('y', 52 + p.fx.length * 12 + 6).text('= ' + fmtVal(values[p.n.id]));
+  });
+
+  document.getElementById('jump').innerHTML = frames.map(f => `<span class="chip" data-s="${f.s.id}">${f.s.n}. ${f.s.title}</span>`).join('');
+  document.querySelectorAll('[data-s]').forEach(c => c.onclick = () => focusFrame(F[c.dataset.s]));
+  if (selected && pos[selected]) select(selected, false); else Detail.render(detail, null);
+}
+
+function select(id, zoomTo) {
+  selected = id;
+  const up = new Set(), down = new Set();
+  const walkUp = i => (pos[i]?.n.deps || []).forEach(d => { if (pos[d] && !up.has(d)) { up.add(d); walkUp(d); } });
+  const walkDown = i => Object.values(pos).forEach(p => { if (p.n.deps.includes(i) && !down.has(p.n.id)) { down.add(p.n.id); walkDown(p.n.id); } });
+  walkUp(id); walkDown(id);
+  root.selectAll('.card').classed('faded', p => p.n.id !== id && !up.has(p.n.id) && !down.has(p.n.id)).classed('sel', p => p.n.id === id);
+  root.selectAll('.link').classed('up', l => (up.has(l.s) || l.s === id) && (up.has(l.t) || l.t === id))
+    .classed('down', l => (down.has(l.t)) && (down.has(l.s) || l.s === id))
+    .classed('faded', function () { return !this.classList.contains('up') && !this.classList.contains('down'); });
+  Detail.render(detail, id, values, i => select(i, true));
+  if (zoomTo) { const p = pos[id]; zoomBox(p.x - 200, p.y - 150, p.w + 400, p.h + 300); }
+}
+function clear() { selected = null; root.selectAll('.faded,.sel,.up,.down').classed('faded sel up down', false); Detail.render(detail, null); }
+
+const zoom = d3.zoom().scaleExtent([0.04, 6]).on('zoom', e => {
+  root.attr('transform', e.transform);
+  const k = e.transform.k, lod = k < 0.32 ? 0 : k < 0.9 ? 1 : 2;
+  root.attr('class', 'lod' + lod);
+  document.getElementById('lod').innerHTML = `Zoom ${(k * 100).toFixed(0)} % · <b>${['Sections', 'Variables', 'Formulas'][lod]}</b>`;
+});
+svg.call(zoom).on('dblclick.zoom', null).on('click', clear);
+function zoomBox(x, y, w, h) {
+  const { width, height } = svg.node().getBoundingClientRect();
+  const k = Math.min(width / w, height / h, 6);
+  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(k).translate(-(x + w / 2), -(y + h / 2)));
+}
+function focusFrame(f) { zoomBox(f.x - 40, f.y - 20, f.w + 80, Math.min(f.h, 650) + 40); }
+function overview() { const b = root.node().getBBox(); zoomBox(b.x - 60, b.y - 60, b.width + 120, b.height + 120); }
+document.getElementById('fit').onclick = overview;
+Topics.render(document.getElementById('topics'), () => { draw(); });
+draw(); overview();
+</script>
+</body>
+</html>
