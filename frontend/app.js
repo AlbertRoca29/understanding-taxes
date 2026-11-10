@@ -18,6 +18,8 @@
     };
     const EXTRA_OPTS = [100, 95, 90, 85, 80, 75, 70, 60, 50];
     const slicesOf = (r, n = S.pagues) => salarySlices(r, n, last.esp, S.extraPct / 100);
+    // El que hi haurà a la nòmina: mateixes pagues, amb la retenció en lloc de l'impost real
+    const slipOf = (r, n = S.pagues) => payslipSlices(r, n, last.esp, S.extraPct / 100);
     let last = null;      // { r, rc, gross } de l'últim càlcul bo
     let seq = 0, timer = null;
 
@@ -126,7 +128,7 @@
     document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
         if (b.dataset.mode === S.mode) return;
         // Continuïtat: el resultat d'un mode és l'entrada de l'altre
-        if (last) writeMoney('amount', S.mode === 'gross' ? Math.round(last.slices.ordinary) : Math.round(last.gross));
+        if (last) writeMoney('amount', S.mode === 'gross' ? Math.round(slipOf(last.r).ordinary) : Math.round(last.gross));
         S.mode = b.dataset.mode;
         applyMode();
         schedule(0);
@@ -240,7 +242,7 @@
         const sc = rc ? slicesOf(rc) : null;
         $('result').innerHTML = hero(r, s) + (sc ? compareBlock(s, sc) : '')
             + section(tr('On van els teus diners', 'A dónde va tu dinero', 'Where your money goes'), Charts.bar(s))
-            + payslipBlock(r, s)
+            + payslipBlock(r)
             + (r.curve ? section(tr('El teu sou dins la corba', 'Tu sueldo en la curva', 'Your salary on the curve'), '<div id="curveChart"></div>') : '')
             + `<details class="all-figures"><summary>${tr('Totes les xifres', 'Todas las cifras', 'All the figures')}</summary><div class="all-figures-body">${salaryBreakdown(r, s)}</div></details>`;
         if (r.curve) Charts.curve($('curveChart'), r.curve, [
@@ -256,7 +258,7 @@
     const section = (title, body, extra = '') => `<section class="res-block"${extra}><h2 class="res-title">${title}</h2>${body}</section>`;
 
     function hero(r, s) {
-        const rate = `${gloss('retencio')} <b>${fmtPct(r.tipo_retencio)}</b>`;
+        const rate = `${gloss('efectiu')} <b>${fmtPct(r.tipus_efectiu)}</b>`;
         if (S.mode === 'net') {
             return `<div class="result-hero">
                 <div class="result-hero-label">${tr('Brut anual que necessites', 'Bruto anual que necesitas', 'Annual gross you need')}</div>
@@ -276,6 +278,8 @@
             any: [s.netAnnual, ''],
         };
         const [val, sub] = V[S.unit];
+        const slip = slipOf(r);
+        const slipVal = { paga: slip.ordinary, mes: slip.month, any: slip.netAnnual }[S.unit];
         // Grup de cotització desconegut: mostrem el rang entre el grup més habitual i el grup 1
         const low = last.rLow ? { paga: 'ordinary', mes: 'month', any: 'netAnnual' }[S.unit] : null;
         const lowVal = low ? slicesOf(last.rLow)[low] : val;
@@ -285,11 +289,19 @@
             <div class="hero-top">
                 <div class="unit-tabs" role="group" aria-label="${tr('Unitat', 'Unidad', 'Unit')}">${units.map(([k, l]) => `<button type="button" data-unit="${k}" aria-pressed="${k === S.unit}">${l}</button>`).join('')}</div>
             </div>
+            <div class="result-hero-pair">
+            <div>
             <div class="result-hero-label">${tr('Net', 'Neto', 'Net')}</div>
             <div class="result-hero-value">${shown}</div>
             <div class="result-hero-sub">${[sub, rate].filter(Boolean).join(' · ')}</div>
             ${groupNote}
             ${s.especie ? `<div class="result-hero-sub">${tr(`I a més ${fmtEur0(s.especie)} l'any en espècie`, `Y además ${fmtEur0(s.especie)} al año en especie`, `Plus ${fmtEur0(s.especie)} a year in kind`)}</div>` : ''}
+            </div>
+            <div class="result-hero-side">
+                <div class="result-hero-side-label">${tr('A la nòmina hi veuràs', 'En la nómina verás', 'Your payslip will show')}</div>
+                <div class="result-hero-side-value">${fmtEur0(slipVal)}</div>
+            </div>
+            </div>
         </div>`;
     }
 
@@ -301,7 +313,7 @@
             <div class="cmp-big">${fmtEur0(x.ordinary)}</div><div class="cmp-l">${per}</div>
             <div class="cmp-row"><span>${tr('Brut', 'Bruto', 'Gross')}</span><b>${fmtEur0(x.G)}</b></div>
             <div class="cmp-row"><span>${tr('Net anual', 'Neto anual', 'Net per year')}</span><b>${fmtEur0(x.netAnnual)}</b></div>
-            <div class="cmp-row"><span>${tr('Retenció', 'Retención', 'Withholding')}</span><b>${fmtPct(x.irpf / x.G * 100)}</b></div></div>`;
+            <div class="cmp-row"><span>${tr('IRPF efectiu', 'IRPF efectivo', 'Effective tax')}</span><b>${fmtPct(x.irpf / x.G * 100)}</b></div></div>`;
         return section(tr('Comparació', 'Comparación', 'Comparison'), `
             <div class="cmp">${col(tr('Sou actual', 'Sueldo actual', 'Current'), s)}${col(tr('Sou nou', 'Sueldo nuevo', 'New'), sc, 'new')}</div>
             <div class="cmp-delta ${d >= 0 ? 'up' : 'down'}">${tr(
@@ -311,7 +323,8 @@
             ${Charts.deltaBar(d, sc.ss - s.ss, sc.irpf - s.irpf)}`);
     }
 
-    function payslipBlock(r, s) {
+    function payslipBlock(r) {
+        const s = slipOf(r);
         const extra = S.payslip === 'extra' && s.extras;
         const f = r.total_ss_mensual ? s.ssPaga / r.total_ss_mensual : 0;
         const rate = v => fmtPct(r.base_ss_mensual ? v / r.base_ss_mensual * 100 : NaN);

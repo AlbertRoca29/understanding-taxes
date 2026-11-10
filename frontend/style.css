@@ -500,6 +500,31 @@ details[open] > .group-content { animation: slide-down 0.22s ease-out; }
     font-variant-numeric: tabular-nums;
 }
 
+.result-hero-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: end;
+}
+.result-hero-side {
+    border-left: 1px solid var(--primary-border);
+    padding-left: 16px;
+}
+.result-hero-side-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+.result-hero-side-value {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin: 2px 0;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+    .result-hero-pair { grid-template-columns: 1fr; gap: 12px; }
+    .result-hero-side { border-left: none; border-top: 1px solid var(--primary-border); padding: 12px 0 0; }
+}
+
 .result-section + .result-section { margin-top: 22px; }
 .result-section-title {
     padding-bottom: 6px;
@@ -923,3 +948,9 @@ h1 { color: var(--primary); }
 .result-hero-value { font-size: 3.6em; letter-spacing: -0.03em; }
 @media (max-width: 480px) { .result-hero-value { font-size: 2.8em; } }
 .cmp-col.new { background: var(--primary-light); }
+
+/* Targeta petita de la nòmina dins l'hero vermell */
+.result-hero-pair { align-items: center; }
+.result-hero .result-hero-side { border-color: rgba(255,255,255,.35); }
+.result-hero .result-hero-side-label { color: rgba(255,255,255,.85); }
+.result-hero .result-hero-side-value { color: #fff; font-size: 1.6em; }

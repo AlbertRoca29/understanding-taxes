@@ -94,16 +94,20 @@ function errorBox(message) {
 // ── Glossari: termes amb una definició curta en passar-hi per sobre ─────────
 const GLOSSARY = {
     retencio: [tr('Retenció', 'Retención', 'Withholding'),
-        tr("Percentatge del sou que l'empresa avança a Hisenda cada mes. A la renda es regularitza.",
-           'Porcentaje del sueldo que la empresa adelanta a Hacienda cada mes. En la renta se regulariza.',
-           'Share of your pay your employer sends to the tax office each month. It is settled in the yearly tax return.')],
+        tr("Percentatge que l'empresa et descompta a cada nòmina a compte de l'IRPF. Fa servir una fórmula aproximada, per això la nòmina no quadra exactament amb el que pagues de veritat.",
+           'Porcentaje que la empresa te descuenta en cada nómina a cuenta del IRPF. Usa una fórmula aproximada, por eso la nómina no cuadra exactamente con lo que pagas de verdad.',
+           'Share your employer deducts from each payslip towards income tax. It uses an approximate formula, so the payslip does not match exactly what you really pay.')],
+    efectiu: [tr('IRPF efectiu', 'IRPF efectivo', 'Effective tax rate'),
+        tr("La part del sou brut que pagues d'IRPF de veritat en tot l'any.",
+           'La parte del sueldo bruto que pagas de IRPF de verdad en todo el año.',
+           'The share of your gross pay that really goes to income tax over the year.')],
     ss: [tr('Seguretat Social', 'Seguridad Social', 'Social Security'),
         tr('La teva part de les cotitzacions: pensió, atur i formació.',
            'Tu parte de las cotizaciones: pensión, paro y formación.',
            'Your share of contributions: pension, unemployment and training.')],
-    irpf: ['IRPF', tr("L'impost sobre la renda. A la nòmina se'n paga una part cada mes (la retenció).",
-           'El impuesto sobre la renta. En la nómina se paga una parte cada mes (la retención).',
-           'Income tax. Part of it is paid from each payslip (the withholding).')],
+    irpf: ['IRPF', tr("L'impost sobre la renda: una part estatal i una de la comunitat autònoma.",
+           'El impuesto sobre la renta: una parte estatal y una de la comunidad autónoma.',
+           'Income tax: one part for the state and one for the region.')],
     extra: [tr('Paga extra', 'Paga extra', 'Extra payment'),
         tr('No porta Seguretat Social: ja es cotitza repartida en els 12 mesos.',
            'No lleva Seguridad Social: ya se cotiza repartida en los 12 meses.',
@@ -164,9 +168,17 @@ function resultSection(title, rows) {
     </section>`;
 }
 
+// Les mateixes pagues però amb la retenció de la nòmina en lloc de l'impost real
+function payslipSlices(r, n, especie = 0, ratio = 1) {
+    return salarySlices({ ...r, cuota_irpf_anual: r.irpf_nomina_anual }, n, especie, ratio);
+}
+
 // Totes les xifres (plegat): només el que no surt ja a la nòmina ni a la barra.
 function salaryBreakdown(r, s) {
     const neg = v => '−' + fmtEur(v);
+    const w = r.walkthrough || {};
+    const aut = window.Profile?.read().region === 'Mitjana espanyola'
+        ? tr('Part autonòmica', 'Parte autonómica', 'Regional part') : tr('Part catalana', 'Parte catalana', 'Catalan part');
     return resultSection(tr("Com s'arriba a l'IRPF (anual)", 'Cómo se llega al IRPF (anual)', 'How income tax is worked out (yearly)'), [
         [tr('Sou brut', 'Sueldo bruto', 'Gross pay'), fmtEur(r.rendiment_brut_treball)],
         [tr('Seguretat Social', 'Seguridad Social', 'Social Security'), neg(r.total_ss_anual), 'minus'],
@@ -174,9 +186,13 @@ function salaryBreakdown(r, s) {
         ...(r.reduccio_rendiments_treball > 0 ? [[tr('Reducció per sou baix', 'Reducción por sueldo bajo', 'Low-pay reduction'), neg(r.reduccio_rendiments_treball), 'minus']] : []),
         [tr('Part que tributa', 'Parte que tributa', 'Taxable part'), fmtEur(r.base_imponible), 'total'],
         [tr("Part lliure d'impostos", 'Parte libre de impuestos', 'Tax-free part'), fmtEur(r.minim_personal_familiar), 'sub'],
-        [tr('IRPF anual', 'IRPF anual', 'Yearly income tax'), `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
-        [gloss('retencio'), `<b>${fmtPct(r.tipo_retencio)}</b>`],
+        [tr('Part estatal', 'Parte estatal', 'State part'), fmtEur(w.Q_EST)],
+        [aut, fmtEur(w.Q_AUT)],
+        ...(w.DED_SMI > 0 ? [[tr('Deducció per sou baix', 'Deducción por sueldo bajo', 'Low-pay tax credit'), neg(w.DED_SMI), 'minus']] : []),
+        [tr('IRPF anual', 'IRPF anual', 'Yearly income tax'), `<b>${fmtEur(r.cuota_irpf_anual)}</b>`, 'total'],
+        [gloss('efectiu'), `<b>${fmtPct(r.tipus_efectiu)}</b>`],
         [gloss('marginal'), `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
+        [gloss('retencio', tr('Retenció a la nòmina', 'Retención en la nómina', 'Payslip withholding')), fmtPct(r.tipo_retencio), 'sub'],
     ]);
 }
 
@@ -184,14 +200,14 @@ function salaryBreakdown(r, s) {
 // [clau del backend, etiqueta, base mínima mensual]. Mantenir sincronitzat amb
 // SS_BASE_MIN_BY_GROUP a backend/variables.py. La clau no es tradueix.
 const GRUPS_COTITZACIO = [
-    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', tr('Enginyers, llicenciats, alta direcció', 'Ingenieros, licenciados, alta dirección', 'Engineers, graduates, senior management'), 1929.00],
-    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  tr('Enginyers tècnics, tècnics titulats', 'Ingenieros técnicos, técnicos titulados', 'Technical engineers, qualified technicians'), 1599.60],
-    ['Grup 3 – Caps administratius i de taller',     tr('Caps administratius i de taller', 'Jefes administrativos y de taller', 'Office and workshop supervisors'), 1391.70],
-    ['Grup 4 – Ajudants no titulats',                tr('Ajudants no titulats', 'Ayudantes no titulados', 'Non-graduate assistants'), 1381.20],
-    ['Grup 5 – Oficials administratius',             tr('Oficials administratius', 'Oficiales administrativos', 'Administrative officers'), 1381.20],
-    ['Grup 6 – Subalterns',                          tr('Subalterns', 'Subalternos', 'Junior staff'), 1381.20],
-    ['Grup 7 – Auxiliars administratius',            tr('Auxiliars administratius', 'Auxiliares administrativos', 'Administrative assistants'), 1381.20],
-    ['Grups 8-11 – Oficials, especialistes i peons', tr('Oficials, especialistes i peons', 'Oficiales, especialistas y peones', 'Tradespeople, specialists and labourers'), 1381.20],
+    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', tr('Enginyers, llicenciats, alta direcció', 'Ingenieros, licenciados, alta dirección', 'Engineers, graduates, senior management'), 1989.30],
+    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  tr('Enginyers tècnics, tècnics titulats', 'Ingenieros técnicos, técnicos titulados', 'Technical engineers, qualified technicians'), 1649.70],
+    ['Grup 3 – Caps administratius i de taller',     tr('Caps administratius i de taller', 'Jefes administrativos y de taller', 'Office and workshop supervisors'), 1435.20],
+    ['Grup 4 – Ajudants no titulats',                tr('Ajudants no titulats', 'Ayudantes no titulados', 'Non-graduate assistants'), 1424.40],
+    ['Grup 5 – Oficials administratius',             tr('Oficials administratius', 'Oficiales administrativos', 'Administrative officers'), 1424.40],
+    ['Grup 6 – Subalterns',                          tr('Subalterns', 'Subalternos', 'Junior staff'), 1424.40],
+    ['Grup 7 – Auxiliars administratius',            tr('Auxiliars administratius', 'Auxiliares administrativos', 'Administrative assistants'), 1424.40],
+    ['Grups 8-11 – Oficials, especialistes i peons', tr('Oficials, especialistes i peons', 'Oficiales, especialistas y peones', 'Tradespeople, specialists and labourers'), 1424.40],
 ];
 const _grupWord = () => tr('Grup', 'Grupo', 'Group');
 const _grupsWord = () => tr('Grups', 'Grupos', 'Groups');

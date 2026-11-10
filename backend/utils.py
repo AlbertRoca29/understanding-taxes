@@ -335,7 +335,9 @@ def calcular_retencion(retrib: Decimal, cotizaciones: Decimal, fam: "FamilySitua
     zero = Decimal("0.00")
     # ── Gastos deduïbles ─────────────────────────────────────────────────────
     d = fam.disability_percent_self
-    otrosgastos = calcular_gastos_deducibles(retrib, cotizaciones, False, 33 <= d < 65, d >= 65, "ACTIVO")
+    # INCREGASDISTRA: 7.750 € si ≥65 % o (33-64 % i MOVILPER = S); 3.500 € si 33-64 %
+    grave = d >= 65 or (d >= 33 and fam.disability_self_help)
+    otrosgastos = calcular_gastos_deducibles(retrib, cotizaciones, False, 33 <= d < 65, grave, "ACTIVO")
     incregasdistra = otrosgastos - GASTOS_DEDUCIDOS["otros_gastos_generales"] if otrosgastos > GASTOS_DEDUCIDOS["otros_gastos_generales"] else zero
 
     # ── Rendiment net i reducció art. 20 (sobre RNT, abans dels 2.000 €) ─────
@@ -386,4 +388,55 @@ def calcular_retencion(retrib: Decimal, cotizaciones: Decimal, fam: "FamilySitua
         "TABLA1": tabla1, "EXENTOS": exentos,
         "CUOTA1": cuota1, "CUOTA2": cuota2, "CUOTA_PRE": cuota_pre, "LIMITE": limite, "CAPPED": capped, "CUOTA": cuota,
         "TIPO_RAW": tipo_raw, "TIPO": tipo, "FLOOR_APPLIED": floor_applied, "IMPORTE": importe,
+    }
+
+
+def calcular_impost_real(retrib: Decimal, cotizaciones: Decimal, fam: "FamilySituation",
+                         escala_estatal: "IRPFScale", escala_autonomica: "IRPFScale") -> Dict:
+    """
+    Quota anual real d'IRPF (la que acabes pagant), per a un contribuent que només té
+    rendiments del treball d'un pagador i fa declaració individual. A diferència de la
+    retenció: escala estatal i autonòmica per separat, sense límit excloent ni límit del
+    43 %, i amb la deducció per rendiments del treball de la DA 61a (SMI).
+    """
+    zero = Decimal("0.00")
+    # ── Del brut a la base liquidable (art. 19 i 20 LIRPF) ───────────────────
+    d = fam.disability_percent_self
+    grave = d >= 65 or (d >= 33 and fam.disability_self_help)
+    otrosgastos = calcular_gastos_deducibles(retrib, cotizaciones, False, 33 <= d < 65, grave, "ACTIVO")
+    incregasdistra = otrosgastos - GASTOS_DEDUCIDOS["otros_gastos_generales"] if otrosgastos > GASTOS_DEDUCIDOS["otros_gastos_generales"] else zero
+    rnt = max(retrib - cotizaciones, zero)
+    red20 = redondear1(compute_reduction_by_work(rnt))
+    base = max(rnt - otrosgastos - red20, zero)
+
+    # ── Mínim personal i familiar (a Catalunya coincideix amb l'estatal) ──────
+    minimo = fam.minimo_breakdown()
+    minperfa = minimo["MINPERFA"]
+
+    # ── Quotes íntegres: escala(base) − escala(mínim), estatal i autonòmica ──
+    q_est = max(escala_estatal.tax_on_base(base) - escala_estatal.tax_on_base(minperfa), zero)
+    q_aut = max(escala_autonomica.tax_on_base(base) - escala_autonomica.tax_on_base(minperfa), zero)
+    quota_integra = q_est + q_aut
+
+    # ── Deducció DA 61a (SMI): 590,89 € fins a 17.094 €, baixa 0,2 € per € ───
+    p = DEDUCCIO_SMI
+    if retrib <= p["smi"]:
+        ded_smi = p["import"]
+    elif retrib < p["limit"]:
+        ded_smi = max(p["import"] - p["coef"] * (retrib - p["smi"]), zero)
+    else:
+        ded_smi = zero
+    ded_smi = min(ded_smi, quota_integra)  # només hi ha rendiments del treball
+
+    quota_raw = max(quota_integra - ded_smi, zero)
+    quota = redondear1(quota_raw)
+    return {
+        "RETRIB": retrib, "COTIZACIONES": cotizaciones,
+        "GASTOSGEN": GASTOS_DEDUCIDOS["otros_gastos_generales"], "INCREGASDISTRA": incregasdistra, "OTROSGASTOS": otrosgastos,
+        "RNT": rnt, "RED20": red20, "BASE": base,
+        **minimo,
+        "CUOTA_EST_BASE": escala_estatal.tax_on_base(base), "CUOTA_EST_MIN": escala_estatal.tax_on_base(minperfa),
+        "CUOTA_AUT_BASE": escala_autonomica.tax_on_base(base), "CUOTA_AUT_MIN": escala_autonomica.tax_on_base(minperfa),
+        "Q_EST": q_est, "Q_AUT": q_aut, "QUOTA_INTEGRA": quota_integra,
+        "DED_SMI": ded_smi, "QUOTA_RAW": quota_raw, "QUOTA": quota,
     }
