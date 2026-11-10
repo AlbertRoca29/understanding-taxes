@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora d'impostos per al treballador</title>
+    <title>Calculadora de sou net</title>
+    <meta name="description" content="Del sou brut al net (i al revés) amb l'algorisme oficial de retencions de l'AEAT 2026.">
     <link rel="icon" type="image/x-icon" href="logo.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,92 +15,30 @@
 
     <div class="page-wrapper">
         <div class="main-grid">
-
-            <!-- LEFT: form -->
             <div class="form-panel">
-                <h1>Calculadora de sou net</h1>
-                <p class="page-subtitle">Del salari brut al sou que arriba al teu compte.</p>
-                <form id="irpfForm">
-                    <div class="form-row">
-                        <label for="gross">Sou brut anual <span class="req">*</span></label>
-                        <div class="input-affix">
-                            <input type="text" inputmode="decimal" data-money autocomplete="off" id="gross" name="gross" required placeholder="Ex: 30.000">
-                        </div>
-                    </div>
-
+                <div id="formIntro"></div>
+                <form id="calcForm" onsubmit="return false" novalidate>
+                    <div id="amountBlock" style="display:contents"></div>
                     <div id="profileFields" style="display:contents"></div>
-
-                    <button type="submit" class="btn-submit">Calcular</button>
                 </form>
             </div>
 
-            <!-- RIGHT: results -->
             <div class="result-panel">
-                <div class="result-placeholder" id="resultPlaceholder">
-                    Omple el formulari i prem <strong>Calcular</strong> per veure els resultats aquí.
-                </div>
+                <div class="result-placeholder" id="resultPlaceholder"></div>
                 <div id="result" aria-live="polite"></div>
                 <div id="walkthrough"></div>
-                <div id="plots"></div>
             </div>
-
         </div>
     </div>
+
+    <button type="button" class="result-dock" id="resultDock" hidden></button>
 
     <footer class="site-footer" id="site-footer"></footer>
 
     <script src="shared.js"></script>
     <script src="profile.js"></script>
     <script src="walkthrough.js"></script>
-    <script>
-    Profile.mount(document.getElementById('profileFields'), {
-        grossForGroup: () => readMoney('gross'),
-        watchIds: ['gross'],
-    });
-
-    function renderResult(r, npagues) {
-        const heroSub = [`Net anual: <b>${fmtEur(salaryNetAnnual(r))}</b>`];
-        if (npagues !== 12) heroSub.push(`Equivalent mensual (÷12): ${fmtEur(r.sou_net_mensual_equivalent)}`);
-        return resultHero(`Sou net per paga (${npagues})`, fmtEur(r.sou_net_per_paga), heroSub.join(' · '))
-            + salaryBreakdown(r, npagues);
-    }
-
-    // Form submit
-    let requestSeq = 0;
-    document.getElementById('irpfForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const seq = ++requestSeq;
-        const profile = Profile.read();
-        const data = { gross: readMoney('gross'), ...profile };
-
-        const resultEl = document.getElementById('result');
-        const plotsEl = document.getElementById('plots');
-        const wtEl = document.getElementById('walkthrough');
-        document.getElementById('resultPlaceholder').style.display = 'none';
-        wtEl.innerHTML = '';
-        showLoading(resultEl);
-        plotsEl.innerHTML = '';
-        const restoreButton = setSubmitting(this);
-
-        try {
-            const result = await postApi('/api/calculate', data);
-            if (seq !== requestSeq) return; // ja hi ha una petició més nova
-            resultEl.innerHTML = renderResult(result, data.n_pagues);
-            if (result.walkthrough) Walkthrough.render(wtEl, result.walkthrough, null, { region: profile.region });
-
-            if (Array.isArray(result.plots)) {
-                plotsEl.innerHTML = result.plots
-                    .map((img, i) => chartCard(img, 'Gràfic ' + (i + 1), i === 0 ? 'pie' : 'lines'))
-                    .join('');
-            }
-            scrollToResultsIfStacked();
-        } catch (err) {
-            if (seq !== requestSeq) return;
-            showError(resultEl, err.message);
-        } finally {
-            restoreButton();
-        }
-    });
-    </script>
+    <script src="charts.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

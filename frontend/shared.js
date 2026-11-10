@@ -1,23 +1,49 @@
 // ── Configuració i utilitats compartides ─────────────────────────────────────
-const API_BASE = 'https://understanding-taxes-111926362104.europe-west1.run.app';
-// const API_BASE = 'http://localhost:8000';
+// En local (localhost / 127.0.0.1) fa servir el backend local del port 8000.
+const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
+    ? 'http://localhost:8000'
+    : 'https://understanding-taxes-111926362104.europe-west1.run.app';
 
 // Mateixa condició que el layout de dues columnes a style.css
 const TWO_COLUMN_MQ = window.matchMedia('(min-width: 768px) and (orientation: landscape), (min-width: 1024px)');
 
+// ── Idioma ───────────────────────────────────────────────────────────────────
+// Català per defecte. ?lang=es|en o l'últim triat (localStorage).
+const LANGS = ['ca', 'es', 'en'];
+const LANG = (() => {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (LANGS.includes(q)) return q;
+    try { const s = localStorage.getItem('lang'); if (LANGS.includes(s)) return s; } catch {}
+    return 'ca';
+})();
+document.documentElement.lang = LANG;
+// Text en els tres idiomes, al costat d'on es fa servir
+function tr(ca, es, en) { return LANG === 'es' ? es : LANG === 'en' ? en : ca; }
+function setLang(l) {
+    try { localStorage.setItem('lang', l); } catch {}
+    const u = new URL(location.href);
+    u.searchParams.set('lang', l);
+    location.href = u.toString(); // l'estat del formulari viatja a l'URL
+}
+
+// ── Format de números (sempre format català: 1.234,56 €) ────────────────────
 const _eurFormatter = new Intl.NumberFormat('ca-ES', {
     style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always',
 });
+const _eur0Formatter = new Intl.NumberFormat('ca-ES', {
+    style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0, useGrouping: 'always',
+});
 function fmtEur(n) { return _eurFormatter.format(n); }
+function fmtEur0(n) { return _eur0Formatter.format(Math.round(n)); }
 const _pctFormatter = new Intl.NumberFormat('ca-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function fmtPct(n) { return Number.isFinite(n) ? _pctFormatter.format(n) + '%' : '—'; }
+function fmtPct(n) { return Number.isFinite(n) ? _pctFormatter.format(n) + ' %' : '—'; }
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // Pills amb input ocult associat
-function bindPills(groupId, hiddenId) {
+function bindPills(groupId, hiddenId, onPick) {
     const pills = document.querySelectorAll('#' + groupId + ' .pill');
     pills.forEach(pill => {
         pill.addEventListener('click', () => {
@@ -25,25 +51,17 @@ function bindPills(groupId, hiddenId) {
             pill.classList.add('selected');
             pill.setAttribute('aria-pressed', 'true');
             document.getElementById(hiddenId).value = pill.dataset.value;
+            onPick?.(pill.dataset.value);
         });
     });
 }
-
-// Nombre de pagues: 12 / 14 / Altre (camp numèric visible només amb "Altre")
-function bindPaguesPills(groupId, inputId) {
-    const input = document.getElementById(inputId);
-    document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
-        pill.addEventListener('click', () => {
-            document.querySelectorAll('#' + groupId + ' .pill').forEach(p => {
-                p.classList.toggle('selected', p === pill);
-                p.setAttribute('aria-pressed', String(p === pill));
-            });
-            const other = pill.dataset.value === 'other';
-            input.hidden = !other;
-            if (other) { input.value = ''; input.focus(); }
-            else input.value = pill.dataset.value;
-        });
+function selectPill(groupId, hiddenId, value) {
+    document.querySelectorAll('#' + groupId + ' .pill').forEach(p => {
+        const on = p.dataset.value === String(value);
+        p.classList.toggle('selected', on);
+        p.setAttribute('aria-pressed', String(on));
     });
+    document.getElementById(hiddenId).value = value;
 }
 
 // POST JSON a l'API amb missatges d'error llegibles
@@ -56,38 +74,87 @@ async function postApi(path, body) {
             body: JSON.stringify(body),
         });
     } catch {
-        throw new Error("No s'ha pogut connectar amb el servidor. Torna-ho a provar.");
+        throw new Error(tr("No s'ha pogut connectar amb el servidor. Torna-ho a provar.",
+            'No se ha podido conectar con el servidor. Vuelve a intentarlo.',
+            "Couldn't reach the server. Please try again."));
     }
-    if (!response.ok) throw new Error(`El servidor ha retornat un error (${response.status}).`);
+    if (response.status === 404) {
+        throw new Error(tr('El servidor encara no té aquest càlcul. Cal desplegar la versió nova del backend.',
+            'El servidor aún no tiene este cálculo. Hay que desplegar la versión nueva del backend.',
+            "The server doesn't have this calculation yet. The new backend version needs to be deployed."));
+    }
+    if (!response.ok) throw new Error(tr(`El servidor ha retornat un error (${response.status}).`,
+        `El servidor ha devuelto un error (${response.status}).`, `The server returned an error (${response.status}).`));
     return response.json();
 }
-
-// Estat de càrrega: spinner al botó + esquelet al panell de resultats.
-// Retorna una funció per restaurar el botó.
-function setSubmitting(form) {
-    const btn = form.querySelector('[type="submit"]');
-    const label = btn.dataset.label ??= btn.textContent;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Calculant…';
-    return () => { btn.disabled = false; btn.textContent = label; };
-}
-function showLoading(resultEl) {
-    resultEl.innerHTML = '<div class="result-skeleton" aria-busy="true" aria-label="Calculant…">'
-        + '<div class="sk-hero"></div>' + '<div></div>'.repeat(7) + '</div>';
-}
-function showError(resultEl, message) {
-    resultEl.innerHTML = '<div class="result-error" role="alert">Error: ' + escapeHtml(message) + '</div>';
+function errorBox(message) {
+    return '<div class="result-error" role="alert">' + escapeHtml(message) + '</div>';
 }
 
-// ── Blocs de resultats ───────────────────────────────────────────────────────
-// rows: [label, amount, className?]
-function resultHero(label, value, sub) {
-    return `<div class="result-hero">
-        <div class="result-hero-label">${label}</div>
-        <div class="result-hero-value">${value}</div>
-        ${sub ? `<div class="result-hero-sub">${sub}</div>` : ''}
-    </div>`;
+// ── Glossari: termes amb una definició curta en passar-hi per sobre ─────────
+const GLOSSARY = {
+    retencio: [tr('Retenció', 'Retención', 'Withholding'),
+        tr("Percentatge del sou que l'empresa avança a Hisenda cada mes. A la renda es regularitza.",
+           'Porcentaje del sueldo que la empresa adelanta a Hacienda cada mes. En la renta se regulariza.',
+           'Share of your pay your employer sends to the tax office each month. It is settled in the yearly tax return.')],
+    ss: [tr('Seguretat Social', 'Seguridad Social', 'Social Security'),
+        tr('La teva part de les cotitzacions: pensió, atur i formació.',
+           'Tu parte de las cotizaciones: pensión, paro y formación.',
+           'Your share of contributions: pension, unemployment and training.')],
+    irpf: ['IRPF', tr("L'impost sobre la renda. A la nòmina se'n paga una part cada mes (la retenció).",
+           'El impuesto sobre la renta. En la nómina se paga una parte cada mes (la retención).',
+           'Income tax. Part of it is paid from each payslip (the withholding).')],
+    extra: [tr('Paga extra', 'Paga extra', 'Extra payment'),
+        tr('No porta Seguretat Social: ja es cotitza repartida en els 12 mesos.',
+           'No lleva Seguridad Social: ya se cotiza repartida en los 12 meses.',
+           'No Social Security is taken from it: that is already spread over the 12 months.')],
+    base: [tr('Base de cotització', 'Base de cotización', 'Contribution base'),
+        tr('El sou mensual sobre el qual es calcula la Seguretat Social, amb les extres prorratejades.',
+           'El sueldo mensual sobre el que se calcula la Seguridad Social, con las extras prorrateadas.',
+           'The monthly pay Social Security is calculated on, with the extra payments spread in.')],
+    marginal: [tr('Tipus marginal', 'Tipo marginal', 'Marginal rate'),
+        tr("Quin percentatge d'IRPF paga el pròxim euro que guanyis.",
+           'Qué porcentaje de IRPF paga el próximo euro que ganes.',
+           'How much income tax the next euro you earn pays.')],
+    extraPct: ['', tr("En molts convenis la paga extra és només el salari base, sense complements. Si a tu et paguen un mes sencer, tria-ho.",
+           'En muchos convenios la paga extra es solo el salario base, sin complementos. Si a ti te pagan un mes entero, elígelo.',
+           'In many agreements the extra payment is base salary only, without bonuses. If yours is a full month, pick that.')],
+};
+function gloss(key, text) {
+    const [label, def] = GLOSSARY[key];
+    return `<span class="gloss" tabindex="0" data-tip="${escapeHtml(def)}">${text ?? label}</span>`;
 }
+
+// ── Desglossament d'un sou ───────────────────────────────────────────────────
+// Reparteix l'any en pagues tal com surt a la nòmina (el backend fa el mateix):
+//  · la SS es cotitza 12 vegades (amb la prorrata de les extres dins la base) i
+//    les pagues extra no en porten;
+//  · l'IRPF es reté al mateix tipus a cada paga, també sobre l'espècie mensual;
+//  · cada extra val `ratio` mesos normals (molts convenis: només salari base);
+//  · l'espècie no es cobra en diners: no arriba al compte.
+function salarySlices(r, n, especie = 0, ratio = 1) {
+    const G = r.rendiment_brut_treball, ss = r.total_ss_anual, irpf = r.cuota_irpf_anual;
+    const cash = G - especie, t = G ? irpf / G : 0;
+    const extras = Math.max(0, n - 12);
+    const k = extras ? ratio : 1;
+    const month = cash / (extras ? 12 + extras * k : n);     // brut en diners d'un mes normal
+    const extraGross = extras ? month * k : null;
+    const periods = extras ? 12 : n;
+    const espPaga = especie / periods, ssPaga = ss / periods;
+    const irpfPaga = t * (month + espPaga);
+    const netAnnual = cash - ss - irpf;
+    return {
+        n, extras, ratio: k, G, ss, irpf, especie, netAnnual, t,
+        monthGross: month, extraGross, espPaga, ssPaga, irpfPaga,
+        grossPaga: month + espPaga,
+        ordinary: month - ssPaga - irpfPaga,
+        extra: extras ? extraGross * (1 - t) : null,
+        extraIrpf: extras ? extraGross * t : null,
+        month: netAnnual / 12,
+        share: G ? netAnnual / G * 100 : NaN,
+    };
+}
+
 function resultSection(title, rows) {
     const body = rows.map(([label, amount, cls]) =>
         `<tr${cls ? ` class="${cls}"` : ''}><td>${label}</td><td class="amount">${amount}</td></tr>`).join('');
@@ -97,86 +164,37 @@ function resultSection(title, rows) {
     </section>`;
 }
 
-// Desglossament complet d'un sou (calculadora i net → brut): SS, IRPF, per paga i anual
-function salaryBreakdown(r, npagues) {
-    const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
-    const neg = n => '−' + fmtEur(n);
-    const brutAnual = r.rendiment_brut_treball;
-    const netAnual = salaryNetAnnual(r);
-    return resultSection('Cotització SS', [
-        ['Base mensual', `<b>${fmtEur(r.base_ss_mensual)}</b>`],
-        [`Contingències (${ssShare(r.ss_contingencies_comunes_mensual)})`, neg(r.ss_contingencies_comunes_mensual), 'sub'],
-        [`Atur (${ssShare(r.ss_atur_mensual)})`, neg(r.ss_atur_mensual), 'sub'],
-        [`Formació (${ssShare(r.ss_formacio_mensual)})`, neg(r.ss_formacio_mensual), 'sub'],
-        [`MEI (${ssShare(r.ss_mei_mensual)})`, neg(r.ss_mei_mensual), 'sub'],
-        ['Total SS', `${neg(r.total_ss_mensual)}/mes<span class="amount-secondary">${neg(r.total_ss_anual)}/any</span>`, 'total'],
-    ])
-    + resultSection('IRPF', [
-        ['Brut anual', fmtEur(r.rendiment_brut_treball)],
-        ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
-        ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
-        ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
-        ['Base de retenció', fmtEur(r.base_imponible), 'total'],
-        ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
-        ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
-        ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
-        ['Et queda després d\'IRPF (1 − retenció)', fmtPct(100 - r.tipo_retencio), 'sub'],
-        ['Marginal', `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
-    ])
-    + resultSection(`Per paga (${npagues})`, [
-        ['Brut', fmtEur(r.gross_per_paga)],
-        ['− SS', neg(r.ss_per_paga), 'minus'],
-        ['− IRPF', neg(r.irpf_per_paga), 'minus'],
-        ['Net', fmtEur(r.sou_net_per_paga), 'total'],
-    ])
-    + resultSection('Anual', [
-        ['Brut', fmtEur(brutAnual)],
-        ['− SS', neg(r.total_ss_anual), 'minus'],
-        [`− IRPF (${fmtPct(r.tipo_retencio)})`, neg(r.cuota_irpf_anual), 'minus'],
-        ['Net', fmtEur(netAnual), 'total'],
-        ['Et queda del brut', `<b>${fmtPct(brutAnual ? netAnual / brutAnual * 100 : NaN)}</b>`],
+// Totes les xifres (plegat): només el que no surt ja a la nòmina ni a la barra.
+function salaryBreakdown(r, s) {
+    const neg = v => '−' + fmtEur(v);
+    return resultSection(tr("Com s'arriba a l'IRPF (anual)", 'Cómo se llega al IRPF (anual)', 'How income tax is worked out (yearly)'), [
+        [tr('Sou brut', 'Sueldo bruto', 'Gross pay'), fmtEur(r.rendiment_brut_treball)],
+        [tr('Seguretat Social', 'Seguridad Social', 'Social Security'), neg(r.total_ss_anual), 'minus'],
+        [tr('Despeses de feina', 'Gastos del trabajo', 'Work expenses'), neg(r.gastos_deducibles), 'minus'],
+        ...(r.reduccio_rendiments_treball > 0 ? [[tr('Reducció per sou baix', 'Reducción por sueldo bajo', 'Low-pay reduction'), neg(r.reduccio_rendiments_treball), 'minus']] : []),
+        [tr('Part que tributa', 'Parte que tributa', 'Taxable part'), fmtEur(r.base_imponible), 'total'],
+        [tr("Part lliure d'impostos", 'Parte libre de impuestos', 'Tax-free part'), fmtEur(r.minim_personal_familiar), 'sub'],
+        [tr('IRPF anual', 'IRPF anual', 'Yearly income tax'), `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
+        [gloss('retencio'), `<b>${fmtPct(r.tipo_retencio)}</b>`],
+        [gloss('marginal'), `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
     ]);
 }
-function salaryNetAnnual(r) { return r.rendiment_brut_treball - r.total_ss_anual - r.cuota_irpf_anual; }
 
-// ── Gràfics ──────────────────────────────────────────────────────────────────
-function chartCard(base64, alt, kind) {
-    return `<div class="chart-card chart-${kind}" role="button" tabindex="0" title="Ampliar">
-        <img src="data:image/png;base64,${base64}" alt="${escapeHtml(alt)}"></div>`;
-}
-function openLightbox(src, alt) {
-    const box = document.createElement('div');
-    box.className = 'chart-lightbox';
-    box.setAttribute('role', 'dialog');
-    box.innerHTML = `<img src="${src}" alt="${escapeHtml(alt)}">`;
-    const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = e => { if (e.key === 'Escape') close(); };
-    box.addEventListener('click', close);
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(box);
-}
-document.addEventListener('click', e => {
-    const card = e.target.closest('.chart-card');
-    if (card) { const img = card.querySelector('img'); openLightbox(img.src, img.alt); }
-});
-document.addEventListener('keydown', e => {
-    const card = e.target.closest?.('.chart-card');
-    if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); card.click(); }
-});
-
-// ── Grups de cotització (compartit entre pàgines) ───────────────────────────
+// ── Grups de cotització ─────────────────────────────────────────────────────
 // [clau del backend, etiqueta, base mínima mensual]. Mantenir sincronitzat amb
-// SS_BASE_MIN_BY_GROUP a backend/variables.py.
+// SS_BASE_MIN_BY_GROUP a backend/variables.py. La clau no es tradueix.
 const GRUPS_COTITZACIO = [
-    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', 'Enginyers, llicenciats, alta direcció', 1929.00],
-    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  'Enginyers tècnics, tècnics titulats',   1599.60],
-    ['Grup 3 – Caps administratius i de taller',     'Caps administratius i de taller',        1391.70],
-    ['Grup 4 – Ajudants no titulats',                'Ajudants no titulats',                   1381.20],
-    ['Grup 5 – Oficials administratius',             'Oficials administratius',                1381.20],
-    ['Grup 6 – Subalterns',                          'Subalterns',                             1381.20],
-    ['Grup 7 – Auxiliars administratius',            'Auxiliars administratius',               1381.20],
-    ['Grups 8-11 – Oficials, especialistes i peons', 'Oficials, especialistes i peons',        1381.20],
+    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', tr('Enginyers, llicenciats, alta direcció', 'Ingenieros, licenciados, alta dirección', 'Engineers, graduates, senior management'), 1929.00],
+    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  tr('Enginyers tècnics, tècnics titulats', 'Ingenieros técnicos, técnicos titulados', 'Technical engineers, qualified technicians'), 1599.60],
+    ['Grup 3 – Caps administratius i de taller',     tr('Caps administratius i de taller', 'Jefes administrativos y de taller', 'Office and workshop supervisors'), 1391.70],
+    ['Grup 4 – Ajudants no titulats',                tr('Ajudants no titulats', 'Ayudantes no titulados', 'Non-graduate assistants'), 1381.20],
+    ['Grup 5 – Oficials administratius',             tr('Oficials administratius', 'Oficiales administrativos', 'Administrative officers'), 1381.20],
+    ['Grup 6 – Subalterns',                          tr('Subalterns', 'Subalternos', 'Junior staff'), 1381.20],
+    ['Grup 7 – Auxiliars administratius',            tr('Auxiliars administratius', 'Auxiliares administrativos', 'Administrative assistants'), 1381.20],
+    ['Grups 8-11 – Oficials, especialistes i peons', tr('Oficials, especialistes i peons', 'Oficiales, especialistas y peones', 'Tradespeople, specialists and labourers'), 1381.20],
 ];
+const _grupWord = () => tr('Grup', 'Grupo', 'Group');
+const _grupsWord = () => tr('Grups', 'Grupos', 'Groups');
 const _grupNum = i => i === GRUPS_COTITZACIO.length - 1 ? '8–11' : String(i + 1);
 const _grupLast = i => i === GRUPS_COTITZACIO.length - 1 ? '11' : String(i + 1);
 
@@ -195,24 +213,25 @@ function grupBuckets(monthlyBase) {
     return buckets.map(b => [b.from, b.to]);
 }
 function _bucketLabel([from, to]) {
-    if (from === to) return `Grup ${_grupNum(from)} – ${GRUPS_COTITZACIO[from][1]}`;
-    if (from === 0) return 'Tots els grups';
-    return `Grups ${from + 1}–${_grupLast(to)} – Altres categories`;
+    if (from === to) return `${_grupWord()} ${_grupNum(from)} – ${GRUPS_COTITZACIO[from][1]}`;
+    if (from === 0) return tr('Tots els grups', 'Todos los grupos', 'All groups');
+    return `${_grupsWord()} ${from + 1}–${_grupLast(to)} – ${tr('Altres categories', 'Otras categorías', 'Other categories')}`;
 }
 
 // Desplegable que s'adapta al sou: només mostra les opcions que canvien el
 // resultat i es plega quan el grup no afecta. `getAnnualGross` retorna el sou
 // brut anual que determina la base (NaN si encara no s'ha escrit).
-function initGrupSelect(id, getAnnualGross, watchIds) {
+// Retorna { render, get(), set(idx) } per poder desar i restaurar el grup triat.
+function initGrupSelect(id, getAnnualGross, initial = 0) {
     const select = document.getElementById(id);
     const note = document.createElement('div');
     note.className = 'grup-collapsed';
-    note.innerHTML = '<span class="grup-ok">✓</span> No afecta amb aquest sou';
+    note.innerHTML = `<span class="grup-ok">✓</span> ${tr('No afecta amb aquest sou', 'No afecta con este sueldo', 'Makes no difference at this salary')}`;
     const hint = document.createElement('div');
     hint.className = 'field-hint';
     select.after(note, hint);
 
-    let chosen = 0; // índex del grup triat (per defecte, grup 1)
+    let chosen = initial; // índex del grup triat (per defecte, grup 1)
     let buckets = [];
     select.addEventListener('change', () => {
         const [from, to] = buckets[select.selectedIndex];
@@ -223,21 +242,23 @@ function initGrupSelect(id, getAnnualGross, watchIds) {
         const gross = getAnnualGross();
         const hasGross = Number.isFinite(gross) && gross > 0;
         buckets = grupBuckets(hasGross ? gross / 12 : 0);
-        select.innerHTML = buckets.map((b, i) => {
+        select.innerHTML = buckets.map(b => {
             const sel = chosen >= b[0] && chosen <= b[1];
             return `<option value="${GRUPS_COTITZACIO[b[0]][0]}"${sel ? ' selected' : ''}>${_bucketLabel(b)}</option>`;
         }).join('');
         const collapsed = buckets.length === 1;
         select.hidden = collapsed;
         note.hidden = !collapsed;
-        const g1Threshold = GRUPS_COTITZACIO[0][2] * 12;
+        const g1Threshold = Math.round(GRUPS_COTITZACIO[0][2] * 12).toLocaleString('ca-ES');
         hint.textContent = collapsed ? ''
-            : hasGross ? 'Només hi surten els grups que canvien el resultat amb aquest sou.'
-            : `Surt a la capçalera de la nòmina. A partir de ${Math.round(g1Threshold).toLocaleString('ca-ES')} € bruts anuals no afecta el resultat.`;
+            : hasGross ? tr('Només hi surten els grups que canvien el resultat amb aquest sou.', 'Solo aparecen los grupos que cambian el resultado con este sueldo.', 'Only the groups that change the result at this salary are listed.')
+            : tr(`Surt a la capçalera de la nòmina. A partir de ${g1Threshold} € bruts anuals no afecta el resultat.`,
+                 `Aparece en la cabecera de la nómina. A partir de ${g1Threshold} € brutos anuales no afecta al resultado.`,
+                 `It's in your payslip header. Above ${g1Threshold} € gross a year it makes no difference.`);
         hint.hidden = !hint.textContent;
     };
-    watchIds.forEach(w => document.getElementById(w).addEventListener('input', render));
     render();
+    return { render, get: () => chosen, set(i) { chosen = i; render(); } };
 }
 
 // ── Camps d'import (€) amb separador de milers mentre s'escriu ──────────────
@@ -279,6 +300,10 @@ function readMoney(id) {
     const n = parseMoneyText(document.getElementById(id).value);
     return moneyInThousands ? n * 1000 : n;
 }
+// Escriu un import en euros respectant la unitat activa (€ o k€)
+function writeMoney(id, euros) {
+    document.getElementById(id).value = Number.isFinite(euros) ? moneyToText(moneyInThousands ? euros / 1000 : euros) : '';
+}
 function refreshMoneyUnitUi() {
     document.querySelectorAll('input[data-money]').forEach(input => {
         const ph = input.dataset.placeholderEur ??= input.placeholder;
@@ -289,7 +314,9 @@ function refreshMoneyUnitUi() {
     document.querySelectorAll('.money-unit').forEach(btn => {
         btn.textContent = moneyInThousands ? 'k€' : '€';
         btn.setAttribute('aria-pressed', String(moneyInThousands));
-        btn.title = moneyInThousands ? "En milers d'euros. Clica per passar a euros" : "En euros. Clica per escriure en milers (k€)";
+        btn.title = moneyInThousands
+            ? tr("En milers d'euros. Clica per passar a euros", 'En miles de euros. Haz clic para pasar a euros', 'In thousands of euros. Click to switch to euros')
+            : tr('En euros. Clica per escriure en milers (k€)', 'En euros. Haz clic para escribir en miles (k€)', 'In euros. Click to type in thousands (k€)');
     });
 }
 function setMoneyInThousands(k) {
@@ -300,14 +327,15 @@ function setMoneyInThousands(k) {
     try { localStorage.setItem('moneyUnit', k ? 'k' : 'eur'); } catch {}
     refreshMoneyUnitUi();
 }
-function initMoneyInputs() {
-    document.querySelectorAll('input[data-money]').forEach(input => {
+function initMoneyInputs(root = document) {
+    root.querySelectorAll('input[data-money]:not([data-money-ready])').forEach(input => {
+        input.dataset.moneyReady = '1';
         const affix = input.closest('.input-affix');
         if (affix) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'money-unit';
-            btn.setAttribute('aria-label', "Escriure l'import en milers d'euros");
+            btn.setAttribute('aria-label', tr("Escriure l'import en milers d'euros", 'Escribir el importe en miles de euros', 'Type the amount in thousands of euros'));
             btn.addEventListener('click', () => { setMoneyInThousands(!moneyInThousands); input.focus(); });
             affix.appendChild(btn);
         }
@@ -340,44 +368,30 @@ function initMoneyInputs() {
                 if (/[\d,]/.test(formatted[pos])) seen++;
                 pos++;
             }
-            input.setSelectionRange(pos, pos);
+            if (document.activeElement === input) input.setSelectionRange(pos, pos);
         });
     });
     refreshMoneyUnitUi();
 }
 
-// Espera que les imatges (gràfics) estiguin decodificades: si no, la pàgina
-// encara és curta i el scroll queda tallat a mig camí.
-async function scrollToResultsIfStacked() {
-    if (TWO_COLUMN_MQ.matches) return;
-    const panel = document.querySelector('.result-panel');
-    await Promise.all([...panel.querySelectorAll('img')].map(img => img.decode().catch(() => {})));
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
+// ── Capçalera i peu ──────────────────────────────────────────────────────────
 (function () {
-    const page = (location.pathname.split('/').pop() || 'index').replace(/\.html$/, '');
-
-    document.getElementById('navbar').innerHTML = `
+    const githubSvg = '<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+    const nav = document.getElementById('navbar');
+    if (nav) nav.innerHTML = `
         <div class="navbar-inner">
-            <div class="navbar-links">
-                <a href="index.html"${page === 'index' ? ' class="active" aria-current="page"' : ''}>Calculadora sou net</a>
-                <a href="net-brut.html"${page === 'net-brut' ? ' class="active" aria-current="page"' : ''}>Del net al brut</a>
-                <a href="increment.html"${page === 'increment' ? ' class="active" aria-current="page"' : ''}>Increment de sou</a>
+            <a class="navbar-brand" href="index.html">${tr('Calculadora de sou net', 'Calculadora de sueldo neto', 'Net salary calculator')}</a>
+            <div class="lang-switch" role="group" aria-label="${tr('Idioma', 'Idioma', 'Language')}">
+                ${LANGS.map(l => `<button type="button" data-lang="${l}" aria-pressed="${l === LANG}">${l.toUpperCase()}</button>`).join('')}
             </div>
-            <a class="navbar-author" href="https://github.com/AlbertRoca29" target="_blank" rel="noopener" title="Albert Roca Llevadot" aria-label="Albert Roca Llevadot a GitHub">
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                <span class="navbar-author-name">Albert Roca Llevadot</span>
-            </a>
         </div>`;
+    nav?.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => { if (b.dataset.lang !== LANG) setLang(b.dataset.lang); }));
 
-    const githubSvg = document.querySelector('.navbar-author svg').outerHTML;
-
-    document.getElementById('site-footer').innerHTML = `
-        <a href="https://github.com/AlbertRoca29" target="_blank" rel="noopener">
-            ${githubSvg}
-            AlbertRoca29
-        </a>
+    const footer = document.getElementById('site-footer');
+    if (footer) footer.innerHTML = `
+        <a href="https://github.com/AlbertRoca29" target="_blank" rel="noopener">${githubSvg} Albert Roca Llevadot</a>
         <span class="sep">·</span>
-        <a href="mailto:albertrocallevadot@gmail.com" class="footer-email">albertrocallevadot@gmail.com</a>`;
+        <a href="mailto:albertrocallevadot@gmail.com" class="footer-email">albertrocallevadot@gmail.com</a>
+        <span class="sep">·</span>
+        <a href="https://sede.agenciatributaria.gob.es/static_files/Sede/Programas_ayuda/Retenciones/2026/Algoritmo%20Retenciones-2026_10sept.pdf" target="_blank" rel="noopener">${tr('Algorisme oficial AEAT 2026', 'Algoritmo oficial AEAT 2026', 'Official AEAT 2026 algorithm')}</a>`;
 })();
