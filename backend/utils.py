@@ -41,45 +41,40 @@ class FamilySituation:
             extra += DISABILITY_RELATIVES_HELP_EXTRA
         return extra
 
-    def minimo_personal_familiar(self) -> Decimal:
-        # ── Mínim del contribuent (acumulatiu) ───────────────────────────────
-        minimo = MINIMO_CONTRIBUYENTE
-        if self.age >= 65:
-            minimo += MINIMO_65
-        if self.age >= 75:
-            minimo += MINIMO_75
+    def counted_children(self):
+        """Fills que donen dret a mínim: < 25 anys o amb discapacitat (NUMDES)."""
+        return [c for c in self.children if c[0] < 25 or c[1] >= 33]
 
-        # ── Mínim per descendents ────────────────────────────────────────────
-        # Compten els fills < 25 anys o amb discapacitat. L'import per ordre
-        # (1r, 2n, 3r, 4t+) s'assigna als que compten, en l'ordre de la llista.
-        mindes = Decimal("0.00")
-        order = 0
-        for child_age, child_disab, child_help in self.children:
-            counts = child_age < 25 or child_disab >= 33
-            if not counts:
-                continue
-            order += 1
+    def minimo_breakdown(self) -> Dict[str, Decimal]:
+        """Mínim personal i familiar desglossat amb els noms de l'algorisme AEAT."""
+        # ── A. Mínim del contribuent (acumulatiu) ────────────────────────────
+        per65 = MINIMO_65 if self.age >= 65 else Decimal("0.00")
+        per75 = MINIMO_75 if self.age >= 75 else Decimal("0.00")
+        mincon = MINIMO_CONTRIBUYENTE + per65 + per75
+
+        # ── B. Mínim per descendents: import per ordre (1r, 2n, 3r, 4t+) ─────
+        mindesg = Decimal("0.00")
+        mindes3 = Decimal("0.00")
+        disdes = Decimal("0.00")
+        for order, (child_age, child_disab, child_help) in enumerate(self.counted_children(), start=1):
             idx = min(order, len(CHILDREN_UNDER_25_ADJUSTMENT)) - 1
-            mindes += CHILDREN_UNDER_25_ADJUSTMENT[idx][1]
+            mindesg += CHILDREN_UNDER_25_ADJUSTMENT[idx][1]
             if child_age < 3:
-                mindes += CHILDREN_UNDER_3_EXTRA
-            mindes += self._disability_minimum(child_disab, child_help)
+                mindes3 += CHILDREN_UNDER_3_EXTRA
+            disdes += self._disability_minimum(child_disab, child_help)
 
-        # ── Mínim per ascendents ─────────────────────────────────────────────
-        # Compten els ascendents >= 65 anys o amb discapacitat. El tram d'edat
-        # és acumulatiu (>=75 suma 65 i 75), igual que el del contribuent.
+        # ── C. Mínim per ascendents (>= 65 anys o amb discapacitat) ──────────
         minas = Decimal("0.00")
+        disas = Decimal("0.00")
         for asc_age, asc_disab, asc_help in self.ascendants:
-            counts = asc_age >= 65 or asc_disab >= 33
-            if not counts:
+            if not (asc_age >= 65 or asc_disab >= 33):
                 continue
-            if asc_age >= 65:
-                minas += ASCENDENTS_ADJUSTMENT[0][1]
+            minas += ASCENDENTS_ADJUSTMENT[0][1]
             if asc_age >= 75:
                 minas += ASCENDENTS_ADJUSTMENT[1][1]
-            minas += self._disability_minimum(asc_disab, asc_help)
+            disas += self._disability_minimum(asc_disab, asc_help)
 
-        # ── Mínim per discapacitat del contribuent ───────────────────────────
+        # ── D. Mínim per discapacitat del contribuent ────────────────────────
         mindisc = Decimal("0.00")
         if self.disability_percent_self >= 65:
             mindisc += DISABILITY_SELF_ADJUSTMENTS[1][1]
@@ -88,9 +83,16 @@ class FamilySituation:
         if self.disability_percent_self >= 33 and (self.disability_self_help or self.disability_percent_self >= 65):
             mindisc += DISABILITY_SELF_HELP_EXTRA
 
-        # ── Suma total ───────────────────────────────────────────────────────
-        minperfa = minimo + mindes + minas + mindisc
-        return redondear1(minperfa)
+        mdisdeas = disdes + disas
+        minperfa = redondear1(mincon + mindesg + mindes3 + minas + mindisc + mdisdeas)
+        return {
+            "MINCON": mincon, "PER65": per65, "PER75": per75,
+            "MINDESG": mindesg, "MINDES3": mindes3, "MINAS": minas,
+            "MINDISC": mindisc, "MDISDEAS": mdisdeas, "MINPERFA": minperfa,
+        }
+
+    def minimo_personal_familiar(self) -> Decimal:
+        return self.minimo_breakdown()["MINPERFA"]
 def calcular_gastos_deducibles(retrib, cotizaciones, movilidad_geografica, discapacidad_trabajador_activo, discapacidad_trabajador_activo_grave, situper):
     gastosgen = GASTOS_DEDUCIDOS["otros_gastos_generales"]
     incregasmovil = GASTOS_DEDUCIDOS["movilidad_geografica"] if movilidad_geografica else Decimal("0.00")
@@ -321,3 +323,67 @@ def calcular_marginal_irpf(base: Decimal, minperfa: Decimal, anualidades: Decima
         return Decimal("0.00")
 
     return escala.rate_at(taxable_part)
+
+
+def calcular_retencion(retrib: Decimal, cotizaciones: Decimal, fam: "FamilySituation",
+                       contract_type: str, escala: "IRPFScale") -> Dict:
+    """
+    Tipus de retenció seguint l'algorisme oficial de l'AEAT 2026 per a un treballador actiu
+    (SITUFAM 3, sense regularització). Retorna tots els passos intermedis amb els noms
+    de l'algorisme perquè el frontend pugui explicar-los.
+    """
+    zero = Decimal("0.00")
+    # ── Gastos deduïbles ─────────────────────────────────────────────────────
+    d = fam.disability_percent_self
+    otrosgastos = calcular_gastos_deducibles(retrib, cotizaciones, False, 33 <= d < 65, d >= 65, "ACTIVO")
+    incregasdistra = otrosgastos - GASTOS_DEDUCIDOS["otros_gastos_generales"] if otrosgastos > GASTOS_DEDUCIDOS["otros_gastos_generales"] else zero
+
+    # ── Rendiment net i reducció art. 20 (sobre RNT, abans dels 2.000 €) ─────
+    rnt = max(retrib - cotizaciones, zero)
+    red20 = redondear1(compute_reduction_by_work(rnt))
+    rntredu = max(rnt - otrosgastos - red20, zero)
+
+    # ── Reduccions i base ────────────────────────────────────────────────────
+    numdes = len(fam.counted_children())
+    hijos = REDUCTION_MORE_THAN_TWO_CHILDREN if numdes > 2 else zero
+    redu = hijos
+    base = rntredu - redu if rntredu > redu else zero
+
+    # ── Mínim personal i familiar ────────────────────────────────────────────
+    minimo = fam.minimo_breakdown()
+    minperfa = minimo["MINPERFA"]
+
+    # ── Límit excloent (Taula 1) ─────────────────────────────────────────────
+    tabla1 = EXCLUSION_LIMITS_SITUACION3[min(numdes, 2)]
+    exentos = retrib <= tabla1
+
+    # ── Quota: escala(base) − escala(mínim), amb límit del 43 % ──────────────
+    cuota1 = escala.tax_on_base(base)
+    cuota2 = escala.tax_on_base(minperfa)
+    cuota_pre = cuota1 - cuota2 if cuota1 > cuota2 else zero
+    limite = (retrib - tabla1) * MAX_WITHHOLDING_PERCENT_FOR_LIMITED if retrib <= MAX_WITHHOLDING_LIMIT_BASE else None
+    cuota = cuota_pre
+    capped = limite is not None and cuota > limite
+    if capped:
+        cuota = limite
+    if exentos:
+        cuota = zero
+
+    # ── Tipus: truncat a 2 decimals, mínim del 2 % en contractes temporals ───
+    tipo_raw = truncar(cuota / retrib * Decimal("100")) if retrib > 0 else zero
+    tipo = tipo_raw
+    floor_applied = contract_type == "temporary" and tipo < RETENCION_MIN_CONTRATO_INFERIOR_ANO
+    if floor_applied:
+        tipo = RETENCION_MIN_CONTRATO_INFERIOR_ANO
+    importe = redondear1(retrib * tipo / Decimal("100"))
+
+    return {
+        "RETRIB": retrib, "COTIZACIONES": cotizaciones,
+        "GASTOSGEN": GASTOS_DEDUCIDOS["otros_gastos_generales"], "INCREGASDISTRA": incregasdistra, "OTROSGASTOS": otrosgastos,
+        "RNT": rnt, "RED20": red20, "RNTREDU": rntredu,
+        "NUMDES": numdes, "HIJOS": hijos, "REDU": redu, "BASE": base,
+        **minimo,
+        "TABLA1": tabla1, "EXENTOS": exentos,
+        "CUOTA1": cuota1, "CUOTA2": cuota2, "CUOTA_PRE": cuota_pre, "LIMITE": limite, "CAPPED": capped, "CUOTA": cuota,
+        "TIPO_RAW": tipo_raw, "TIPO": tipo, "FLOOR_APPLIED": floor_applied, "IMPORTE": importe,
+    }

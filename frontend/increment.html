@@ -8,14 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-        @media (min-width: 768px) and (orientation: landscape),
-               (min-width: 1024px) {
-            .form-panel { flex: 0 0 400px; }
-        }
-
-        #result { font-size: 0.95em; line-height: 1.75; }
-    </style>
 </head>
 <body>
     <nav class="navbar" id="navbar"></nav>
@@ -26,6 +18,7 @@
             <!-- LEFT: form -->
             <div class="form-panel">
                 <h1>Increment de sou</h1>
+                <p class="page-subtitle">Quant et queda net d'una pujada de sou.</p>
                 <form id="incrementForm">
                     <div class="form-row">
                         <label for="sou_actual">Sou actual (€) <span style="color:var(--primary)">*</span></label>
@@ -35,41 +28,8 @@
                         <label for="sou_nou">Nou sou (€) <span style="color:var(--primary)">*</span></label>
                         <input type="number" id="sou_nou" name="sou_nou" required step="any" placeholder="Ex: 27000">
                     </div>
-                    <div class="form-row">
-                        <label for="n_pagues">Nombre de pagues <span style="color:var(--primary)">*</span></label>
-                        <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" value="14" placeholder="Ex: 14">
-                    </div>
-                    <div class="form-row">
-                        <label for="grup_cotitzacio">Grup de cotització SS <span style="color:var(--primary)">*</span></label>
-                        <select id="grup_cotitzacio" name="grup_cotitzacio" required>
-                            <option value="Grup 1 – Enginyers/Llicenciats/Alta direcció" selected>Grup 1 – Enginyers, Llicenciats, Alta direcció</option>
-                            <option value="Grup 2 – Enginyers tècnics/Tècnics titulats">Grup 2 – Enginyers tècnics, Tècnics titulats</option>
-                            <option value="Grup 3 – Caps administratius i de taller">Grup 3 – Caps administratius i de taller</option>
-                            <option value="Grup 4 – Ajudants no titulats">Grup 4 – Ajudants no titulats</option>
-                            <option value="Grup 5 – Oficials administratius">Grup 5 – Oficials administratius</option>
-                            <option value="Grup 6 – Subalterns">Grup 6 – Subalterns</option>
-                            <option value="Grup 7 – Auxiliars administratius">Grup 7 – Auxiliars administratius</option>
-                            <option value="Grups 8-11 – Oficials, especialistes i peons">Grups 8-11 – Oficials, especialistes i peons</option>
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <label>Tipus de contracte <span style="color:var(--primary)">*</span></label>
-                        <div class="pill-group" id="contractTypePills">
-                            <div class="pill selected" data-value="indefinite">Indefinit</div>
-                            <div class="pill" data-value="temporary">Temporal</div>
-                        </div>
-                        <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
-                    </div>
-                    <div class="form-row">
-                        <label>La teva discapacitat</label>
-                        <div class="pill-group" id="disabilitySelfPills">
-                            <div class="pill selected" data-value="0">Cap</div>
-                            <div class="pill" data-value="50">33–64%</div>
-                            <div class="pill" data-value="80">65% o més</div>
-                        </div>
-                        <input type="hidden" id="disability_self" value="0">
-                        <div class="field-hint">Fills, ascendents i edat no modifiquen l'increment: el seu efecte es cancel·la entre el sou actual i el nou.</div>
-                    </div>
+                    <div id="profileFields" style="display:contents"></div>
+
                     <button type="submit" class="btn-submit">Calcular increment</button>
                 </form>
             </div>
@@ -80,6 +40,8 @@
                     Introdueix els sous i prem <strong>Calcular increment</strong> per veure la diferència neta.
                 </div>
                 <div id="result"></div>
+                <div id="walkthrough"></div>
+                <div id="plots"></div>
             </div>
 
         </div>
@@ -88,29 +50,24 @@
     <footer class="site-footer" id="site-footer"></footer>
 
     <script src="shared.js"></script>
+    <script src="profile.js"></script>
+    <script src="walkthrough.js"></script>
     <script>
-    function bindPills(groupId, hiddenId) {
-        document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
-            pill.onclick = function() {
-                document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
-                pill.classList.add('selected');
-                document.getElementById(hiddenId).value = pill.getAttribute('data-value');
-            };
-        });
-    }
-    bindPills('contractTypePills', 'contract_type');
-    bindPills('disabilitySelfPills', 'disability_self');
+    Profile.mount(document.getElementById('profileFields'));
 
     document.getElementById('incrementForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const souActual = parseFloat(document.getElementById('sou_actual').value);
         const souNou = parseFloat(document.getElementById('sou_nou').value);
-        const nPagues = parseInt(document.getElementById('n_pagues').value);
-        const grupCotitzacio = document.getElementById('grup_cotitzacio').value;
-        const contractType = document.getElementById('contract_type').value;
+        const profile = Profile.read();
+        const nPagues = profile.n_pagues;
 
         const placeholder = document.getElementById('resultPlaceholder');
         const resultEl = document.getElementById('result');
+        const wtEl = document.getElementById('walkthrough');
+        const plotsEl = document.getElementById('plots');
+        wtEl.innerHTML = '';
+        plotsEl.innerHTML = '';
 
         if (isNaN(souActual) || isNaN(souNou) || souNou <= souActual) {
             placeholder.style.display = 'none';
@@ -122,26 +79,10 @@
         resultEl.innerHTML = '<div style="color:#888;padding:20px 0;text-align:center">Calculant…</div>';
 
         try {
-            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/increment', {
-            // const response = await fetch('http://localhost:8000/api/increment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    previous_gross: souActual,
-                    new_gross: souNou,
-                    n_pagues: nPagues,
-                    pagues_prorratejades: false,
-                    retribucio_en_especie_ann: 0,
-                    grup_cotitzacio: grupCotitzacio,
-                    contract_type: contractType,
-                    other_deductions: 0,
-                    age: 30,
-                    disability_self: parseInt(document.getElementById('disability_self').value)
-                })
-            });
-            if (!response.ok) throw new Error('API error');
-            const result = await response.json();
+            const result = await Profile.post('/api/increment', { previous_gross: souActual, new_gross: souNou, ...profile });
             const fmt = (n) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            const pct = (n) => n.toFixed(2) + '%';
+            const prev = result.previous, now = result.new;
             resultEl.innerHTML = `
 <div style="font-size:0.95em;text-align:left;line-height:1.75;background:#f8f8f8;border-radius:12px;padding:20px 18px;border:1px solid #eee">
   <div style="font-weight:700;color:#e2231a;margin-bottom:10px;font-size:0.95em;letter-spacing:0.04em;font-family:Inter,sans-serif">RESUM DE L'INCREMENT</div>
@@ -152,8 +93,13 @@
   <div style="border-top:1px solid #e0e4ea;margin:8px 0"></div>
   <b style="font-size:1.08em">Increment net per paga (${nPagues}): ${fmt(result.increment_annual_net / nPagues)}</b><br>
   <span style="color:#888;font-size:0.88em">Equivalent mensual (÷12): ${fmt(result.increment_monthly_net)}</span>
-</div>
-${result.increment_pie ? `<div style="margin-top:18px"><img src="data:image/png;base64,${result.increment_pie}" style="max-width:100%;border-radius:10px"></div>` : ''}`;
+  ${prev ? `<div style="border-top:1px solid #e0e4ea;margin:8px 0"></div>
+  <span style="color:#888">Tipus de retenció:</span> ${pct(prev.tipo_retencio)} → <b>${pct(now.tipo_retencio)}</b><br>
+  <span style="color:#888">Sou net per paga:</span> ${fmt(prev.sou_net_per_paga)} → <b>${fmt(now.sou_net_per_paga)}</b>` : ''}
+</div>`;
+
+            if (now && now.walkthrough) Walkthrough.render(wtEl, now.walkthrough, prev.walkthrough, { region: profile.region });
+            if (result.increment_pie) plotsEl.innerHTML = `<img src="data:image/png;base64,${result.increment_pie}" alt="Gràfic de l'increment">`;
 
             if (window.innerWidth < 1024) {
                 document.querySelector('.result-panel').scrollIntoView({behavior:'smooth', block:'start'});

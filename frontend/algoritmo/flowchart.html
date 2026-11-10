@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B · Flowchart</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="proto.css">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<style>
+  #chart svg { width: 100%; height: 100%; max-width: none !important; }
+  .live { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .live label { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <h3>What it is</h3>
+    <div>The algorithm as the <b>order of steps and decisions</b> the payer's software runs, top to bottom. Diamonds are the “Si … Else” branches of the PDF. Fill in a profile and the path taken lights up.</div>
+    <h3>Your path</h3>
+    <div class="live">
+      <div><label>Gross pay €</label><input type="number" id="retrib" value="30000" step="1000"></div>
+      <div><label>Social security €</label><input type="number" id="cot" value="1905" step="100"></div>
+      <div><label>Family sit.</label><select id="sit"><option>3</option><option>2</option><option>1</option></select></div>
+      <div><label>Children</label><input type="number" id="kids" value="0" min="0" max="6"></div>
+      <div><label>Status</label><select id="per"><option>ACTIVO</option><option>PENSIONISTA</option><option>DESEMPLEADO</option></select></div>
+      <div><label>Contract</label><select id="con"><option>GENERAL</option><option value="INFERIORANYO">INFERIOR AÑO</option><option>ESPECIAL</option></select></div>
+    </div>
+    <div id="result" style="margin-top:10px" class="detail"></div>
+    <h3>Detail level</h3>
+    <select id="lvl"><option value="steps">Steps only</option><option value="vars">Steps + variables used</option></select>
+  </aside>
+  <main class="canvas"><div id="chart" style="position:absolute;inset:0"></div>
+    <div class="hint">scroll = zoom · drag = pan</div>
+    <div class="floating"><button class="btn" id="fit">Fit</button></div>
+  </main>
+</div>
+<script src="data.js"></script><script src="calc.js"></script><script src="nav.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: false, theme: 'base', securityLevel: 'loose', flowchart: { curve: 'basis', htmlLabels: true, nodeSpacing: 30, rankSpacing: 40 },
+  themeVariables: { fontFamily: 'Inter, Arial', primaryColor: '#ffffff', primaryBorderColor: '#bbb', lineColor: '#999', fontSize: '14px' } });
+
+// extra variable-level info per step (for "Steps + variables")
+const VARS = {
+  f1: 'NIF · AÑOPER · SITUFAM · SITUPER · CONTRATO · RETRIB', f2: 'NUMDES · ENTERO · NUMAS · CONVIVENCIA',
+  f3: 'GASTOSGEN 2.000 + INCREGASMOVIL + INCREGASDISTRA', f4: '− IRREGULAR1 − IRREGULAR2',
+  f5a: '≤14.852 → 7.302 · ≤17.673,52 → 7.302−1,75·Δ · <19.747,50 → 2.364,34−1,14·Δ',
+  f8: 'MINCON 5.550 (+1.150 ≥65, +1.400 ≥75) · MINDES 2.400/2.700/4.000/4.500 (+2.800 <3) · MINAS · MINDIS',
+  f9: 'Sit.1: 17.644 / 18.694 · Sit.2: 17.197 / 18.130 / 19.262 · Sit.3: 15.876 / 16.342 / 16.867',
+  f10: '19 / 24 / 30 / 37 / 45 / 47 %', f12a: '0,43 × (RETRIB − Table 1 limit)', f14: 'MINOPAGO = 2 % RETRIB if PRESVIV & < 33.007,20',
+};
+
+function path(v, p) {
+  const on = new Set(['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f14', 'f15', 'f16', 'f17', 'f18', 'fend']);
+  if (v.RNT <= 19747.5) on.add('f5a');
+  if (v.EXENTOS) on.add('f9a'); else { on.add('f10'); on.add('f11'); on.add('f12'); if (typeof v.LIMITE === 'number' && v.CUOTA1 - v.CUOTA2 > v.LIMITE) on.add('f12a'); }
+  if (p.CONTRATO === 'ESPECIAL') on.add('f16a'); if (p.CONTRATO === 'INFERIORANYO') on.add('f16b');
+  return on;
+}
+
+let pz;
+async function draw() {
+  const p = { RETRIB: +retrib.value, COTIZACIONES: +cot.value, SITUFAM: +sit.value, SITUPER: per.value, CONTRATO: con.value,
+    children: Array.from({ length: +kids.value }, (_, i) => ({ year: 2016 + i * 2, entero: true, disc: 'NO' })) };
+  const v = IRPFcalc.run(p);
+  const on = path(v, p);
+  const esc = s => s.replace(/"/g, '#quot;');
+  const lines = ['flowchart TD'];
+  const stageOf = {};
+  for (const f of IRPF.flow) {
+    let t = esc(f.text);
+    if (lvl.value === 'vars' && VARS[f.id]) t += `<br/><span style='font-size:11px;color:#777;font-family:monospace'>${esc(VARS[f.id])}</span>`;
+    const shape = f.type === 'decision' ? `{"${t}"}` : f.type === 'start' || f.type === 'end' ? `(["${t}"])` : `["${t}"]`;
+    lines.push(`  ${f.id}${shape}`);
+    (stageOf[f.stage] = stageOf[f.stage] || []).push(f.id);
+  }
+  let ei = 0; const hot = [];
+  for (const f of IRPF.flow) for (const n of f.next) {
+    const [to, lab] = Array.isArray(n) ? n : [n, null];
+    lines.push(`  ${f.id} -->${lab ? `|${lab}|` : ''} ${to}`);
+    if (on.has(f.id) && on.has(to)) hot.push(ei);
+    ei++;
+  }
+  // stage groups
+  for (const s of IRPF.stages) if (stageOf[s.id]) {
+    lines.push(`  subgraph S_${s.id}["${s.n}. ${s.title}"]`); stageOf[s.id].forEach(id => lines.push('    ' + id)); lines.push('  end');
+  }
+  lines.push('  classDef on fill:#fff1f0,stroke:#e2231a,stroke-width:2.5px,color:#1a1a1a');
+  lines.push('  classDef dec fill:#fff4dd,stroke:#c77c00');
+  lines.push('  classDef off fill:#fff,stroke:#ccc,color:#999');
+  lines.push(`  class ${IRPF.flow.filter(f => on.has(f.id)).map(f => f.id).join(',')} on`);
+  lines.push(`  class ${IRPF.flow.filter(f => !on.has(f.id)).map(f => f.id).join(',')} off`);
+  hot.forEach(i => lines.push(`  linkStyle ${i} stroke:#e2231a,stroke-width:3px`));
+  for (const s of IRPF.stages) if (stageOf[s.id]) lines.push(`  style S_${s.id} fill:#fafafa,stroke:#e3e3e3,color:#b81b13`);
+
+  const { svg } = await mermaid.render('m' + Date.now(), lines.join('\n'));
+  chart.innerHTML = svg;
+  const el = chart.querySelector('svg');
+  el.removeAttribute('style'); el.setAttribute('width', '100%'); el.setAttribute('height', '100%');
+  if (pz) pz.destroy();
+  pz = svgPanZoom(el, { zoomScaleSensitivity: 0.3, minZoom: 0.2, maxZoom: 12, fit: true, center: true });
+  result.innerHTML = `BASE <span class="val">${fmtVal(+v.BASE.toFixed(2))} €</span> · MINPERFA <span class="val">${fmtVal(v.MINPERFA)} €</span><br>
+    CUOTA <span class="val">${fmtVal(+v.CUOTA.toFixed(2))} €</span>${v.EXENTOS ? ' (exempt)' : ''}<br>
+    <b>TIPO <span class="val">${fmtVal(v.TIPO)} %</span> · IMPORTE <span class="val">${fmtVal(v.IMPORTE)} €</span></b>`;
+}
+const [retrib, cot, sit, per, con, kids, lvl, chart, result] = ['retrib', 'cot', 'sit', 'per', 'con', 'kids', 'lvl', 'chart', 'result'].map(i => document.getElementById(i));
+[retrib, cot, sit, per, con, kids, lvl].forEach(e => e.onchange = draw);
+document.getElementById('fit').onclick = () => { pz.resize(); pz.fit(); pz.center(); };
+draw();
+</script>
+</body>
+</html>

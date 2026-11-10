@@ -8,124 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-        @media (min-width: 768px) and (orientation: landscape),
-               (min-width: 1024px) {
-            .form-panel { flex: 0 0 440px; }
-            .result-panel {
-                max-height: calc(100vh - 80px);
-                overflow-y: auto;
-            }
-        }
-
-        /* ---- Toggle switch ---- */
-        .switch {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            font-size: 0.88em;
-            font-weight: 500;
-        }
-        .switch input[type="checkbox"] { display: none; }
-        .slider {
-            width: 38px;
-            height: 22px;
-            background: #ccc;
-            border-radius: 12px;
-            position: relative;
-            transition: background 0.2s;
-            flex-shrink: 0;
-        }
-        .slider::before {
-            content: '';
-            position: absolute;
-            left: 3px;
-            top: 3px;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
-            transition: transform 0.2s;
-        }
-        .switch input[type="checkbox"]:checked + .slider { background: var(--primary); }
-        .switch input[type="checkbox"]:checked + .slider::before { transform: translateX(16px); }
-
-        /* ---- Accordion ---- */
-        details {
-            border: 1.5px solid var(--input-border);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        summary {
-            font-weight: 600;
-            font-size: 0.9em;
-            color: var(--primary);
-            padding: 11px 14px;
-            cursor: pointer;
-            outline: none;
-            list-style: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            user-select: none;
-            letter-spacing: 0.01em;
-        }
-        summary::-webkit-details-marker { display: none; }
-        summary::before {
-            content: '▶';
-            font-size: 0.65em;
-            transition: transform 0.2s;
-            opacity: 0.7;
-        }
-        details[open] > summary::before { transform: rotate(90deg); }
-        .group-content {
-            padding: 8px 14px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            border-top: 1px solid var(--input-border);
-            background: #fafafa;
-        }
-
-        /* ---- Extra buttons ---- */
-        .add-btn {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 7px;
-            padding: 8px 16px;
-            font-size: 0.88em;
-            font-family: inherit;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .add-btn:hover { background: var(--primary-dark); }
-
-        .remove-btn {
-            background: #dc3545;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 5px 10px;
-            font-size: 0.85em;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: 500;
-        }
-        .remove-btn:hover { background: #b02a37; }
-
-        /* ---- Result / plots ---- */
-        #result { font-size: 0.95em; line-height: 1.7; }
-        #plots { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
-        #plots img {
-            max-width: 100%;
-            border-radius: 12px;
-            border: 1px solid #ebebeb;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        }
-    </style>
 </head>
 <body>
     <nav class="navbar" id="navbar"></nav>
@@ -144,92 +26,7 @@
                         <input type="number" id="gross" name="gross" required step="any" placeholder="Ex: 30000">
                     </div>
 
-                    <div class="form-row">
-                        <label>Regió</label>
-                        <div class="pill-group" id="regionPills">
-                            <div class="pill selected" data-value="Catalunya">Catalunya</div>
-                            <div class="pill" data-value="Mitjana espanyola">Mitjana espanyola</div>
-                        </div>
-                        <input type="hidden" id="region" name="region" value="Catalunya">
-                    </div>
-
-                    <div class="form-row">
-                        <label for="n_pagues">Nombre de pagues <span style="color:var(--primary)">*</span></label>
-                        <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" value="14" placeholder="Ex: 14">
-                    </div>
-
-                    <div class="form-row">
-                        <label for="grup_cotitzacio">Grup de cotització SS <span style="color:var(--primary)">*</span></label>
-                        <select id="grup_cotitzacio" name="grup_cotitzacio" required>
-                            <option value="Grup 1 – Enginyers/Llicenciats/Alta direcció" selected>Grup 1 – Enginyers, Llicenciats, Alta direcció</option>
-                            <option value="Grup 2 – Enginyers tècnics/Tècnics titulats">Grup 2 – Enginyers tècnics, Tècnics titulats</option>
-                            <option value="Grup 3 – Caps administratius i de taller">Grup 3 – Caps administratius i de taller</option>
-                            <option value="Grup 4 – Ajudants no titulats">Grup 4 – Ajudants no titulats</option>
-                            <option value="Grup 5 – Oficials administratius">Grup 5 – Oficials administratius</option>
-                            <option value="Grup 6 – Subalterns">Grup 6 – Subalterns</option>
-                            <option value="Grup 7 – Auxiliars administratius">Grup 7 – Auxiliars administratius</option>
-                            <option value="Grups 8-11 – Oficials, especialistes i peons">Grups 8-11 – Oficials, especialistes i peons</option>
-                        </select>
-                    </div>
-
-                    <div class="form-row">
-                        <label>Edat</label>
-                        <div class="pill-group" id="agePills">
-                            <div class="pill selected" data-value="30">&lt; 65</div>
-                            <div class="pill" data-value="65">65+</div>
-                            <div class="pill" data-value="75">75+</div>
-                        </div>
-                        <input type="hidden" id="age" name="age" value="30">
-                    </div>
-
-                    <div class="form-row">
-                        <label>Tipus de contracte</label>
-                        <div class="pill-group" id="contractTypePills">
-                            <div class="pill selected" data-value="indefinite">Indefinit</div>
-                            <div class="pill" data-value="temporary">Temporal</div>
-                        </div>
-                        <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
-                    </div>
-
-                    <details>
-                        <summary>Retribució en espècie i deduccions</summary>
-                        <div class="group-content">
-                            <div class="form-row">
-                                <label for="retribucio_en_especie_ann">Retribució en espècie anual (€)</label>
-                                <input type="number" id="retribucio_en_especie_ann" name="retribucio_en_especie_ann" value="0" step="any" placeholder="Ex: 0">
-                            </div>
-                            <div class="form-row">
-                                <label for="other_deductions">Altres deduccions (€)</label>
-                                <input type="number" id="other_deductions" name="other_deductions" value="0" step="any" placeholder="Ex: 0">
-                            </div>
-                        </div>
-                    </details>
-
-                    <details>
-                        <summary>Situació personal i familiar</summary>
-                        <div class="group-content">
-
-                            <div class="mini-row">
-                                <span class="mini-label">La teva discapacitat</span>
-                                <div class="pill-group" id="selfDisabilityGroup"></div>
-                            </div>
-                            <div id="selfHelpWrap"></div>
-
-                            <div>
-                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Fills</label>
-                                <div class="field-hint" style="margin-bottom:8px">Els fills de 25 anys o més només compten si tenen discapacitat.</div>
-                                <div id="childrenList" style="display:flex;flex-direction:column;gap:10px"></div>
-                                <button type="button" class="add-btn" onclick="addChild()" style="margin-top:10px">+ Afegir fill</button>
-                            </div>
-
-                            <div>
-                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Ascendents a càrrec</label>
-                                <div class="field-hint" style="margin-bottom:8px">Un pare/mare/avi compta si té 65 anys o més o té discapacitat.</div>
-                                <div id="ascendantsList" style="display:flex;flex-direction:column;gap:10px"></div>
-                                <button type="button" class="add-btn" onclick="addAscendant()" style="margin-top:10px">+ Afegir ascendent</button>
-                            </div>
-                        </div>
-                    </details>
+                    <div id="profileFields" style="display:contents"></div>
 
                     <button type="submit" class="btn-submit">Calcular</button>
                 </form>
@@ -241,6 +38,7 @@
                     Omple el formulari i prem <strong>Calcular</strong> per veure els resultats aquí.
                 </div>
                 <div id="result"></div>
+                <div id="walkthrough"></div>
                 <div id="plots"></div>
             </div>
 
@@ -250,124 +48,30 @@
     <footer class="site-footer" id="site-footer"></footer>
 
     <script src="shared.js"></script>
+    <script src="profile.js"></script>
+    <script src="walkthrough.js"></script>
     <script>
-    // Pills
-    function bindPills(groupId, hiddenId) {
-        document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
-            pill.onclick = function() {
-                document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
-                pill.classList.add('selected');
-                document.getElementById(hiddenId).value = pill.getAttribute('data-value');
-            };
-        });
-    }
-    bindPills('regionPills', 'region');
-    bindPills('agePills', 'age');
-    bindPills('contractTypePills', 'contract_type');
+    Profile.mount(document.getElementById('profileFields'));
 
-    // ── Situació familiar (agrupada per persona) ─────────────────────────────
-    // Cada selector envia el valor representatiu del tram que realment compta.
-    const DISAB_OPTS = [['Cap', 0], ['33–64%', 50], ['65% o més', 80]];
-    const CHILD_AGE  = [['Menys de 3', 1], ['3–24 anys', 10], ['25 o més', 30]];
-    const ASC_AGE    = [['Menys de 65', 60], ['65–74', 70], ['75 o més', 80]];
-
-    function pillGroup(opts, current, makeCall) {
-        return '<div class="pill-group">' + opts.map(([label, val]) =>
-            `<div class="pill${current === val ? ' selected' : ''}" onclick="${makeCall(val)}">${label}</div>`
-        ).join('') + '</div>';
-    }
-    // L'ajuda només es demana al tram 33–64%; a 65%+ ja s'aplica automàticament.
-    function helpToggle(checked, call) {
-        return `<label class="switch"><input type="checkbox" ${checked ? 'checked' : ''} onchange="${call}"><span class="slider"></span>Necessita ajuda de tercers o mobilitat reduïda</label>`;
-    }
-    function personCard(kind, m, i, ageOpts, label) {
-        const help = m.disability === 50 ? helpToggle(m.help, `set_${kind}(${i},'help',this.checked)`) : '';
-        return `<div class="person-card">
-            <div class="person-card-head"><span>${label} ${i + 1}</span>
-                <button type="button" class="remove-btn" onclick="remove_${kind}(${i})">&times;</button></div>
-            <div class="mini-row"><span class="mini-label">Edat</span>${pillGroup(ageOpts, m.age, v => `set_${kind}(${i},'age',${v})`)}</div>
-            <div class="mini-row"><span class="mini-label">Discapacitat</span>${pillGroup(DISAB_OPTS, m.disability, v => `set_${kind}(${i},'disability',${v})`)}</div>
-            ${help}
-        </div>`;
-    }
-    function updateMember(arr, render, i, key, val) {
-        arr[i][key] = val;
-        if (key === 'disability' && val !== 50) arr[i].help = false;
-        render();
-    }
-
-    // Discapacitat pròpia
-    let selfDisability = 0, selfHelp = false;
-    function renderSelf() {
-        document.getElementById('selfDisabilityGroup').innerHTML =
-            pillGroup(DISAB_OPTS, selfDisability, v => `setSelfDisability(${v})`);
-        document.getElementById('selfHelpWrap').innerHTML =
-            selfDisability === 50 ? helpToggle(selfHelp, 'setSelfHelp(this.checked)') : '';
-    }
-    window.setSelfDisability = function(v) { selfDisability = v; if (v !== 50) selfHelp = false; renderSelf(); };
-    window.setSelfHelp = function(v) { selfHelp = v; };
-    renderSelf();
-
-    // Fills
-    let children = [];
-    function renderChildren() {
-        document.getElementById('childrenList').innerHTML =
-            children.map((m, i) => personCard('child', m, i, CHILD_AGE, 'Fill')).join('');
-    }
-    window.set_child = function(i, key, val) { updateMember(children, renderChildren, i, key, val); };
-    window.remove_child = function(i) { children.splice(i, 1); renderChildren(); };
-    window.addChild = function() { children.push({ age: 10, disability: 0, help: false }); renderChildren(); };
-    renderChildren();
-
-    // Ascendents
-    let ascendants = [];
-    function renderAscendants() {
-        document.getElementById('ascendantsList').innerHTML =
-            ascendants.map((m, i) => personCard('asc', m, i, ASC_AGE, 'Ascendent')).join('');
-    }
-    window.set_asc = function(i, key, val) { updateMember(ascendants, renderAscendants, i, key, val); };
-    window.remove_asc = function(i) { ascendants.splice(i, 1); renderAscendants(); };
-    window.addAscendant = function() { ascendants.push({ age: 70, disability: 0, help: false }); renderAscendants(); };
-    renderAscendants();
-
-    // Form submit
     document.getElementById('irpfForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const data = {
-            gross: parseFloat(document.getElementById('gross').value),
-            region: document.getElementById('region').value,
-            n_pagues: parseInt(document.getElementById('n_pagues').value),
-            pagues_prorratejades: true,
-            retribucio_en_especie_ann: parseFloat(document.getElementById('retribucio_en_especie_ann').value) || 0,
-            grup_cotitzacio: document.getElementById('grup_cotitzacio').value,
-            contract_type: document.getElementById('contract_type').value,
-            other_deductions: parseFloat(document.getElementById('other_deductions').value) || 0,
-            age: parseInt(document.getElementById('age').value),
-            disability_percent_self: selfDisability,
-            disability_self_help: selfHelp,
-            children: children.map(c => ({ age: c.age, disability: c.disability, needs_help: c.disability === 50 ? c.help : false })),
-            ascendants: ascendants.map(a => ({ age: a.age, disability: a.disability, needs_help: a.disability === 50 ? a.help : false }))
-        };
+        const profile = Profile.read();
+        const data = { gross: parseFloat(document.getElementById('gross').value), ...profile };
 
         const placeholder = document.getElementById('resultPlaceholder');
         const resultEl = document.getElementById('result');
         const plotsEl = document.getElementById('plots');
+        const wtEl = document.getElementById('walkthrough');
         placeholder.style.display = 'none';
         resultEl.innerHTML = '<div style="color:#888;padding:20px 0;text-align:center">Calculant…</div>';
         plotsEl.innerHTML = '';
+        wtEl.innerHTML = '';
 
         try {
-            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
-            // const response = await fetch('http://localhost:8000/api/calculate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('API error');
-            const result = await response.json();
+            const result = await Profile.post('/api/calculate', data);
             const fmt = (n) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
             const pct = (n) => n.toFixed(2) + '%';
-            const npagues = parseInt(document.getElementById('n_pagues').value);
+            const npagues = profile.n_pagues;
             resultEl.innerHTML = `
 <div style="font-size:0.93em;text-align:left;line-height:1.75;font-family:monospace;background:#f8f8f8;border-radius:12px;padding:16px 18px;border:1px solid #eee">
 <div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">COTITZACIÓ SS</div>
@@ -382,18 +86,16 @@ Total SS: <b>−${fmt(result.total_ss_mensual)}/mes</b> · <b>−${fmt(result.to
 
 <div style="border-top:1px solid #e0e4ea;margin:10px 0"></div>
 <div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">IRPF</div>
-Brut anual: ${fmt(result.rendiment_brut_treball)}<br>
-<span style="color:#888">− Cotitzacions SS:</span> −${fmt(result.total_ss_anual)}<br>
-<span style="color:#888">− Gastos deduïbles:</span> −${fmt(result.gastos_deducibles)}<br>
-<span style="color:#888">− Red. rendiments treball:</span> −${fmt(result.reduccio_rendiments_treball)}<br>
-<b>Base imposable: ${fmt(result.base_imponible)}</b> <span style="color:#888;font-size:0.91em">(mínim p/f: ${fmt(result.minim_personal_familiar)})</span><br>
-<b>Quota IRPF: ${fmt(result.cuota_irpf_anual)}</b> &nbsp;·&nbsp; Retenció: <b>${pct(result.tipo_retencio)}</b> &nbsp;·&nbsp; Marginal: <b>${pct(result.marginal_irpf_percent)}</b>
+Base de retenció: <b>${fmt(result.base_imponible)}</b> <span style="color:#888;font-size:0.91em">(mínim p/f: ${fmt(result.minim_personal_familiar)})</span><br>
+<b>Retenció IRPF: ${fmt(result.cuota_irpf_anual)}</b> &nbsp;·&nbsp; Tipus: <b>${pct(result.tipo_retencio)}</b> &nbsp;·&nbsp; Marginal: <b>${pct(result.marginal_irpf_percent)}</b>
 
 <div style="border-top:1px solid #e0e4ea;margin:10px 0"></div>
 <div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">PER PAGA (${npagues})</div>
 ${fmt(result.gross_per_paga)} − <span style="color:#888">SS ${fmt(result.ss_per_paga)}</span> − <span style="color:#888">IRPF ${fmt(result.irpf_per_paga)}</span> = <b style="font-size:1.08em">${fmt(result.sou_net_per_paga)}</b><br>
 <span style="color:#888;font-size:0.88em">Equivalent mensual (÷12): ${fmt(result.sou_net_mensual_equivalent)}</span>
 </div>`;
+
+            if (result.walkthrough) Walkthrough.render(wtEl, result.walkthrough, null, { region: profile.region });
 
             if (result.plots && Array.isArray(result.plots)) {
                 result.plots.forEach((img, i) => {

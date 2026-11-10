@@ -2,12 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 import base64
 import io
-from utils import FamilySituation, IRPFScale, calculate_base_imposable_irpf, apply_base_limits, round_euro, compute_reduction_by_work
-from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, DEFAULT_SS_RATES, REDUCTION_WORK
+from utils import FamilySituation, IRPFScale, apply_base_limits, round_euro
+from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, DEFAULT_SS_RATES
 import viz_utils
 import matplotlib.pyplot as plt
 
@@ -26,33 +26,60 @@ class FamilyMember(BaseModel):
     disability: int = 0       # 0 / 33-64 / 65+ (% representatiu del tram)
     needs_help: bool = False  # necessita ajuda de tercers o mobilitat reduïda
 
-class SalaryRequest(BaseModel):
-    gross: float
-    region: str
+class Profile(BaseModel):
+    """Dades comunes a la calculadora i a l'increment (mateixes entrades, mateix motor)."""
+    region: str = "Catalunya"
     n_pagues: int
-    pagues_prorratejades: bool
-    retribucio_en_especie_ann: float
+    pagues_prorratejades: bool = True
+    retribucio_en_especie_ann: float = 0
     grup_cotitzacio: str
     contract_type: str
-    other_deductions: float
-    age: int
+    other_deductions: float = 0
+    age: int = 30
     disability_percent_self: int = 0
     disability_self_help: bool = False
     children: List[FamilyMember] = []
     ascendants: List[FamilyMember] = []
 
-class IncrementRequest(BaseModel):
+    def family(self) -> FamilySituation:
+        return FamilySituation(
+            age=self.age,
+            disability_percent_self=self.disability_percent_self,
+            disability_self_help=self.disability_self_help,
+            children=[(m.age, m.disability, m.needs_help) for m in self.children],
+            ascendants=[(m.age, m.disability, m.needs_help) for m in self.ascendants],
+        )
+
+    def calculate(self, gross: float):
+        return perform_calculation(
+            Decimal(str(gross)), self.n_pagues, self.pagues_prorratejades, Decimal(str(self.retribucio_en_especie_ann)),
+            self.grup_cotitzacio, self.contract_type, Decimal(str(self.other_deductions)), self.family(), self.region)
+
+class SalaryRequest(Profile):
+    gross: float
+
+class IncrementRequest(Profile):
     previous_gross: float
     new_gross: float
-    n_pagues: int
-    pagues_prorratejades: bool
-    retribucio_en_especie_ann: float
-    grup_cotitzacio: str
-    contract_type: str
-    other_deductions: float
-    age: int
-    # Única dada familiar que afecta l'increment: mou la base via despeses deduïbles.
-    disability_self: int = 0
+    # Nom antic (abans només s'enviava la discapacitat pròpia)
+    disability_self: Optional[int] = None
+
+    def family(self) -> FamilySituation:
+        if self.disability_self is not None and not self.disability_percent_self:
+            self.disability_percent_self = self.disability_self
+        return super().family()
+
+
+def walkthrough(calc) -> dict:
+    """Passos de l'algorisme oficial, en float, per al desglossament del frontend."""
+    out = {}
+    for k, v in calc["trace"].items():
+        out[k] = float(v) if isinstance(v, Decimal) else v
+    out["SS"] = float(calc["total_ss_anual"])
+    out["OTHER_DEDUCTIONS"] = float(calc["other_deductions"])
+    out["ESCALA"] = [[float(lo), None if hi is None else float(hi), float(rate)] for lo, hi, rate in calc["escala"].brackets]
+    out["MARGINAL"] = float(calc["marginal_irpf_percent"])
+    return out
 
 def fig_to_base64(fig):
     buf = io.BytesIO()
@@ -62,7 +89,7 @@ def fig_to_base64(fig):
     plt.close(fig)
     return img_base64
 
-from utils import calcular_gastos_deducibles, calcular_cuota_retencion, redondear1, truncar, calcular_marginal_irpf, IRPFScale
+from utils import calcular_retencion, redondear1, truncar, IRPFScale
 
 def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region):
     # ── Stage 1: SS base mensual ──────────────────────────────────────────────
@@ -87,63 +114,44 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         ss_contingencies_comunes_mensual + ss_atur_mensual + ss_formacio_mensual + ss_mei_mensual
     )
     total_ss_anual = total_ss_mensual * 12
-
-    # ── Stage 3: Rendiment net del treball ───────────────────────────────────
-    rendiment_brut_treball = gross_including_benefits
-    gastos_deducibles = calcular_gastos_deducibles(
-        rendiment_brut_treball,
-        total_ss_anual,
-        False,
-        fam.disability_percent_self >= 33 and fam.disability_percent_self < 65,
-        fam.disability_percent_self >= 65,
-        "ACTIVO",
+    ss_total_rate = (
+        DEFAULT_SS_RATES["contingencies_common_worker"] + ss_atur_rate
+        + DEFAULT_SS_RATES["training_worker"] + DEFAULT_SS_RATES["mei_worker"]
     )
-    rendiment_net_treball = rendiment_brut_treball - total_ss_anual - gastos_deducibles - other_deductions
 
-    # ── Stage 4: Reducció per rendiments del treball (art. 20 LIRPF) ─────────
-    reduccio_rendiments_treball = compute_reduction_by_work(rendiment_net_treball)
+    def ss_anual(retrib):
+        base = apply_base_limits(retrib / 12, SS_BASE_MIN_BY_GROUP[grup_cotitzacio], SS_BASE_MAX_MONTHLY)
+        return base * ss_total_rate * 12
 
-    # ── Stage 5: Base imposable ───────────────────────────────────────────────
-    base_imponible = max(rendiment_net_treball - reduccio_rendiments_treball, Decimal("0"))
-
-    # ── Stage 6: Escala IRPF + quota ─────────────────────────────────────────
+    # ── Stages 3-7: algorisme oficial de retencions AEAT 2026 ──────────────────
+    # Les "altres deduccions" són despeses de l'art. 19.2 (quotes sindicals,
+    # col·legis professionals…), que l'algorisme suma a COTIZACIONES.
     if region == "Catalunya":
         escala_irpf = IRPFScale.combined_scale(IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL)
-    else:  # Mitjana espanyola: state scale counts twice (no regional deviation)
+    else:  # Mitjana espanyola: state scale counts twice (= escala de retencions oficial)
         escala_irpf = IRPFScale.combined_scale(IRPF_SCALE_ESTATAL, IRPF_SCALE_ESTATAL)
-    minim_personal_familiar = fam.minimo_personal_familiar()
-    cuota_irpf_anual = redondear1(calcular_cuota_retencion(base_imponible, minim_personal_familiar, escala=escala_irpf))
 
-    # ── Stage 7: Tipo de retención (%) ───────────────────────────────────────
-    tipo_retencio = (
-        truncar((cuota_irpf_anual / gross_including_benefits) * Decimal("100"))
-        if gross_including_benefits > 0
-        else Decimal("0.00")
-    )
+    def retencio(retrib):
+        return calcular_retencion(retrib, ss_anual(retrib) + other_deductions, fam, contract_type, escala_irpf)
+
+    trace = retencio(gross_including_benefits)
+    rendiment_brut_treball      = gross_including_benefits
+    gastos_deducibles           = trace["OTROSGASTOS"]
+    rendiment_net_treball       = trace["RNT"]
+    reduccio_rendiments_treball = trace["RED20"]
+    base_imponible              = trace["BASE"]
+    minim_personal_familiar     = trace["MINPERFA"]
+    tipo_retencio               = trace["TIPO"]
+    # Import anual que es reté de veritat: RETRIB × TIPO (tipus ja truncat)
+    cuota_irpf_anual            = trace["IMPORTE"]
 
     # ── Stage 8: Marginal IRPF rate ──────────────────────────────────────────
-    # Chain rule: d(cuota)/d(gross) = bracket_rate × d(base_imponible)/d(gross)
-    r_bracket = escala_irpf.rate_at(base_imponible)
-    ss_total_rate = (
-        DEFAULT_SS_RATES["contingencies_common_worker"]
-        + ss_atur_rate
-        + DEFAULT_SS_RATES["training_worker"]
-        + DEFAULT_SS_RATES["mei_worker"]
-    )
-    ss_is_capped = (gross_including_benefits / 12 >= SS_BASE_MAX_MONTHLY)
-    d_rnt_d_gross = Decimal("1.00") if ss_is_capped else (Decimal("1.00") - ss_total_rate)
-    # derivative of reduction-by-work w.r.t. rendiment_net_treball
-    rn = rendiment_net_treball
-    if rn <= REDUCTION_WORK["upper1"]:
-        r_red = Decimal("0.00")
-    elif rn <= REDUCTION_WORK["upper2"]:
-        r_red = -REDUCTION_WORK["coef2"]
-    elif rn <= REDUCTION_WORK["upper3"]:
-        r_red = -REDUCTION_WORK["coef3"]
+    # La quota és lineal a trossos: la derivada amb un pas d'1 € és exacta fora dels
+    # punts d'inflexió i ja inclou SS, reducció art. 20, límit del 43 % i exempció.
+    if trace["FLOOR_APPLIED"]:
+        marginal_irpf = tipo_retencio / Decimal("100")
     else:
-        r_red = Decimal("0.00")
-    d_base_d_gross = d_rnt_d_gross * (Decimal("1.00") - r_red)
-    marginal_irpf = r_bracket * d_base_d_gross if cuota_irpf_anual > Decimal("0.00") else Decimal("0.00")
+        marginal_irpf = retencio(gross_including_benefits + 1)["CUOTA"] - trace["CUOTA"]
     marginal_irpf_percent = truncar(marginal_irpf * Decimal("100"))
 
     # ── Stage 9: Per paga ────────────────────────────────────────────────────
@@ -173,6 +181,8 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "minim_personal_familiar":     minim_personal_familiar,
         "cuota_irpf_anual":            cuota_irpf_anual,
         "tipo_retencio":               tipo_retencio,
+        "trace":                       trace,
+        "escala":                      escala_irpf,
         # ── Marginal ─────────────────────────────────────────────────────────
         "marginal_irpf_rate":    marginal_irpf,
         "marginal_irpf_percent": marginal_irpf_percent,
@@ -205,25 +215,7 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
 
 @app.post("/api/calculate")
 async def calculate_salary(data: SalaryRequest):
-    gross = Decimal(str(data.gross))
-    n_pagues = data.n_pagues
-    pagues_prorratejades = data.pagues_prorratejades
-    retribucio_en_especie_ann = Decimal(str(data.retribucio_en_especie_ann))
-    grup_cotitzacio = data.grup_cotitzacio
-    contract_type = data.contract_type
-    other_deductions = Decimal(str(data.other_deductions))
-    age = data.age
-    region = data.region
-    fam = FamilySituation(
-        age=age,
-        disability_percent_self=data.disability_percent_self,
-        disability_self_help=data.disability_self_help,
-        children=[(m.age, m.disability, m.needs_help) for m in data.children],
-        ascendants=[(m.age, m.disability, m.needs_help) for m in data.ascendants],
-    )
-    calc = perform_calculation(
-        gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region
-    )
+    calc = data.calculate(data.gross)
 
     # Step 2: Add the bar chart plot (plot_salary_blocks)
     figs = []
@@ -235,8 +227,9 @@ async def calculate_salary(data: SalaryRequest):
     figs.append(fig_to_base64(fig1))
     # Bar chart
     fig2 = viz_utils.plot_salary_blocks(
-        calc["gross_including_benefits"], calc["n_pagues"], calc["pagues_prorratejades"], calc["retribucio_en_especie_ann"], calc["grup_cotitzacio"],
-        calc["contract_type"], calc["fam"], "catalunya", calc["other_deductions"], perform_calculation, return_fig=True)
+        # x = brut incloent espècie, així que no se li torna a sumar l'espècie
+        calc["gross_including_benefits"], calc["n_pagues"], calc["pagues_prorratejades"], Decimal("0"), calc["grup_cotitzacio"],
+        calc["contract_type"], calc["fam"], data.region, calc["other_deductions"], perform_calculation, return_fig=True)
     figs.append(fig_to_base64(fig2))
 
     return {
@@ -269,6 +262,8 @@ async def calculate_salary(data: SalaryRequest):
         # legacy aliases kept for backward compatibility
         "irpf_anual":         float(round_euro(calc["cuota_irpf_anual"])),
         "cotitzacions_anuals": float(round_euro(calc["total_ss_anual"])),
+        # ── Pas a pas (algorisme oficial) ───────────────────────────────────
+        "walkthrough": walkthrough(calc),
         # ── Charts ──────────────────────────────────────────────────────────
         "plots": figs,
     }
@@ -276,16 +271,8 @@ async def calculate_salary(data: SalaryRequest):
 
 @app.post("/api/increment")
 async def calculate_increment(data: IncrementRequest):
-    # La discapacitat pròpia és l'única dada familiar que mou l'increment net
-    # (la resta del mínim personal/familiar es cancel·la a la diferència).
-    fam = FamilySituation(age=data.age, disability_percent_self=data.disability_self)
-    region = "Catalunya"
-    prev = perform_calculation(
-        Decimal(str(data.previous_gross)), data.n_pagues, data.pagues_prorratejades, Decimal(str(data.retribucio_en_especie_ann)),
-        data.grup_cotitzacio, data.contract_type, Decimal(str(data.other_deductions)), fam, region)
-    new = perform_calculation(
-        Decimal(str(data.new_gross)), data.n_pagues, data.pagues_prorratejades, Decimal(str(data.retribucio_en_especie_ann)),
-        data.grup_cotitzacio, data.contract_type, Decimal(str(data.other_deductions)), fam, region)
+    prev = data.calculate(data.previous_gross)
+    new = data.calculate(data.new_gross)
     n = Decimal(data.n_pagues)
     increment_annual_net  = (new["net_per_paga"]       - prev["net_per_paga"])       * n
     increment_monthly_net =  new["net_monthly_equivalent"] - prev["net_monthly_equivalent"]
@@ -301,5 +288,10 @@ async def calculate_increment(data: IncrementRequest):
         "increment_annual_brut": float(round_euro(increment_annual_brut)),
         "increment_annual_ss":   float(round_euro(increment_annual_ss)),
         "increment_annual_irpf": float(round_euro(increment_annual_irpf)),
-        "increment_pie": pie_base64
+        "increment_pie": pie_base64,
+        # ── Resultat complet de cada sou (mateixes xifres que la calculadora) ──
+        "previous": {"tipo_retencio": float(prev["tipo_retencio"]), "irpf_anual": float(round_euro(prev["cuota_irpf_anual"])),
+                     "sou_net_per_paga": float(round_euro(prev["net_per_paga"])), "walkthrough": walkthrough(prev)},
+        "new": {"tipo_retencio": float(new["tipo_retencio"]), "irpf_anual": float(round_euro(new["cuota_irpf_anual"])),
+                "sou_net_per_paga": float(round_euro(new["net_per_paga"])), "walkthrough": walkthrough(new)},
     }
