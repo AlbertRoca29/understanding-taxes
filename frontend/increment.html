@@ -64,18 +64,23 @@
 
     function renderResult(r, nPagues) {
         const prev = r.previous, now = r.new;
-        return resultHero(`Increment net per paga (${nPagues})`, fmtEur(r.increment_annual_net / nPagues),
-                nPagues !== 12 ? `Equivalent mensual (÷12): ${fmtEur(r.increment_monthly_net)}` : '')
+        const nomDelta = now.nomina_net_per_paga - prev.nomina_net_per_paga;
+        return resultHeroPair(`Increment net per paga (${nPagues})`, fmtEur(r.increment_annual_net / nPagues),
+                nPagues !== 12 ? `Equivalent mensual (÷12): ${fmtEur(r.increment_monthly_net)}` : '',
+                'A la nòmina hi veuràs', (nomDelta >= 0 ? '+' : '−') + fmtEur(Math.abs(nomDelta)), 'per paga')
             + resultSection("Resum de l'increment", [
                 ['Increment brut anual', '+' + fmtEur(r.increment_annual_brut)],
                 ['− SS addicional', '−' + fmtEur(r.increment_annual_ss), 'minus'],
                 ['− IRPF addicional', '−' + fmtEur(r.increment_annual_irpf), 'minus'],
                 ['Increment net anual', fmtEur(r.increment_annual_net), 'total'],
+                ["De cada 100 € bruts de l'increment et queden",
+                    `<b>${fmtEur(r.increment_annual_brut ? r.increment_annual_net / r.increment_annual_brut * 100 : 0)}</b>`],
             ])
-            + (prev && now ? resultSection('Abans → després', [
-                ['Tipus de retenció', `${fmtPct(prev.tipo_retencio)} → <b>${fmtPct(now.tipo_retencio)}</b>`],
+            + resultSection('Abans → després', [
+                ['Tipus efectiu IRPF', `${fmtPct(prev.tipus_efectiu)} → <b>${fmtPct(now.tipus_efectiu)}</b>`],
                 [`Sou net per paga (${nPagues})`, `${fmtEur(prev.sou_net_per_paga)} → <b>${fmtEur(now.sou_net_per_paga)}</b>`],
-            ]) : '');
+                ['A la nòmina hi veuràs', `${fmtEur(prev.nomina_net_per_paga)} → ${fmtEur(now.nomina_net_per_paga)}`, 'sub'],
+            ]);
     }
 
     let requestSeq = 0;

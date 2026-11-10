@@ -1,9 +1,9 @@
-// Pas a pas de l'algorisme oficial de retencions (AEAT 2026), a partir del "walkthrough"
+// Pas a pas de l'impost real anual (IRPF 2026), a partir del "walkthrough"
 // que retorna l'API. Mode simple (calculadora) o comparació abans → després (increment).
 //
 //   Walkthrough.render(el, w)            // un sou
 //   Walkthrough.render(el, wNew, wPrev)  // increment: mostra el canvi a cada pas
-//   opts.region: 'Catalunya' | 'Mitjana espanyola' (per anomenar l'escala)
+//   opts.region: 'Catalunya' | 'Mitjana espanyola' (per anomenar l'escala autonòmica)
 (function () {
     const eur = v => (+v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
     const pct = v => (+v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %';
@@ -50,18 +50,17 @@
 
     function render(el, w, p, opts = {}) {
         const R = w.RETRIB, max = Math.max(R, p ? p.RETRIB : 0);
-        const region = opts.region === 'Mitjana espanyola' ? 'de retencions (estatal ×2)' : 'estatal + catalana';
+        const aut = opts.region === 'Mitjana espanyola' ? 'autonòmica (mitjana = estatal)' : 'catalana';
         const otherCot = w.OTHER_DEDUCTIONS > 0 ? ` + ${eur(w.OTHER_DEDUCTIONS)} altres deduccions` : '';
         const pv = k => p ? p[k] : null;
 
         // 1 · Del brut a la base
         const wf = waterfall([
-            { label: 'Sou brut', code: 'RETRIB', v: R, pv: pv('RETRIB'), total: true, cls: 'wt-start' },
-            { label: 'Cotitzacions', code: 'COTIZACIONES', v: w.COTIZACIONES, pv: pv('COTIZACIONES'), sub: 'SS' + otherCot },
-            { label: 'Altres despeses', code: 'OTROSGASTOS', v: w.OTROSGASTOS, pv: pv('OTROSGASTOS'), sub: w.INCREGASDISTRA ? `2.000 + ${eur(w.INCREGASDISTRA)} per discapacitat` : '2.000 € fixos' },
-            { label: 'Reducció art. 20', code: 'RED20', v: w.RED20, pv: pv('RED20'), sub: w.RED20 > 0 ? 'rendiment net ≤ 19.747,50 €' : 'rendiment net massa alt' },
-            ...(w.HIJOS || (p && p.HIJOS) ? [{ label: 'Més de 2 fills', code: 'HIJOS', v: w.HIJOS, pv: pv('HIJOS'), sub: '600 €' }] : []),
-            { label: 'Base de retenció', code: 'BASE', v: w.BASE, pv: pv('BASE'), total: true, cls: 'wt-tot' },
+            { label: 'Sou brut', code: 'brut', v: R, pv: pv('RETRIB'), total: true, cls: 'wt-start' },
+            { label: 'Cotitzacions', code: 'SS', v: w.COTIZACIONES, pv: pv('COTIZACIONES'), sub: 'Seguretat Social' + otherCot },
+            { label: 'Altres despeses', code: 'art. 19', v: w.OTROSGASTOS, pv: pv('OTROSGASTOS'), sub: w.INCREGASDISTRA ? `2.000 + ${eur(w.INCREGASDISTRA)} per discapacitat` : '2.000 € fixos' },
+            { label: 'Reducció', code: 'art. 20', v: w.RED20, pv: pv('RED20'), sub: w.RED20 > 0 ? 'rendiment net ≤ 19.747,50 €' : 'rendiment net massa alt' },
+            { label: 'Base liquidable', code: 'base', v: w.BASE, pv: pv('BASE'), total: true, cls: 'wt-tot' },
         ], max, p);
 
         // 2 · Mínim personal i familiar
@@ -75,53 +74,53 @@
         ].filter(([, k]) => w[k] > 0);
         const maxMin = Math.max(w.BASE, w.MINPERFA, 1);
 
-        // 4 · Escala
+        // 3 · Les dues escales
         const maxB = Math.max(w.BASE, w.MINPERFA, p ? p.BASE : 0, 1);
-        const preCap = w.CUOTA_PRE;
-        const exentLine = w.EXENTOS
-            ? `<span class="wt-pill wt-ok">Sí → no es reté res</span>`
-            : `<span class="wt-pill wt-no">No → s'aplica l'escala</span>`;
+        const scaleBlock = (name, scale, qBase, qMin, q, key) => `
+            <div class="wt-rowlab" style="margin-top:10px"><b>Escala ${name}</b></div>
+            <div class="wt-rowlab">sobre la base ${eur(w.BASE)} = ${eur(qBase)}</div>${brkBar(w.BASE, maxB, scale, p ? p.BASE : null)}
+            <div class="wt-rowlab">sobre el mínim ${eur(w.MINPERFA)} = ${eur(qMin)}</div>${brkBar(w.MINPERFA, maxB, scale)}
+            <div class="wt-kv"><span>Quota ${name}</span><span><b>${p ? `${eur(q)}${delta(q, p[key])}` : eur(q)}</b></span></div>`;
 
-        // 5 · Tipus
-        const dImp = p ? w.IMPORTE - p.IMPORTE : 0, dR = p ? R - p.RETRIB : 0;
+        // 4 · Deducció per rendiments del treball (SMI)
+        const showSmi = w.RETRIB < 20048.45 || (p && p.RETRIB < 20048.45);
+        const smiCard = showSmi ? `
+          <div class="wt-card"><div class="wt-h">4 · Deducció per rendiments del treball <span>· ${p ? `${eur(w.DED_SMI)}${delta(w.DED_SMI, p.DED_SMI)}` : eur(w.DED_SMI)}</span></div>
+            <div class="wt-p">Perquè qui cobra el salari mínim (17.094 €) no pagui IRPF: es resten fins a 590,89 €, que baixen 20 cèntims per cada euro que guanyes per sobre del salari mínim i desapareixen als 20.048,45 €.</div>
+            <div class="wt-kv"><span>Quota estatal + ${aut}</span><span>${eur(w.QUOTA_INTEGRA)}</span>
+              <span>− Deducció</span><span>−${eur(w.DED_SMI)}</span></div></div>` : '';
+
+        // 5 · Resultat
+        const dQ = p ? w.QUOTA - p.QUOTA : 0, dR = p ? R - p.RETRIB : 0;
+        const n = showSmi ? 5 : 4;
 
         el.innerHTML = `
         <div class="wt">
           <div class="wt-head">
-            <div class="wt-title">Com es calcula la retenció, pas a pas</div>
-            <div class="wt-subtitle">Segons l'<a href="https://sede.agenciatributaria.gob.es/static_files/Sede/Programas_ayuda/Retenciones/2026/Algoritmo%20Retenciones-2026_10sept.pdf" target="_blank" rel="noopener">algorisme oficial de l'AEAT 2026</a>${p ? `. Cada pas mostra el valor amb el sou nou i <b>el canvi</b> respecte de l'actual (la marca negra és el valor actual).` : '.'}</div>
+            <div class="wt-title">Com es calcula el teu IRPF, pas a pas</div>
+            <div class="wt-subtitle">Impost anual 2026 segons la llei de l'IRPF${opts.region === 'Mitjana espanyola' ? '' : ' i l\'escala catalana'}${p ? `. Cada pas mostra el valor amb el sou nou i <b>el canvi</b> respecte de l'actual (la marca negra és el valor actual).` : '.'}</div>
           </div>
 
-          <div class="wt-card"><div class="wt-h">1 · Del sou brut a la base de retenció</div>
+          <div class="wt-card"><div class="wt-h">1 · Del sou brut a la base liquidable</div>
             <div class="wt-p">Es resten les cotitzacions, una despesa fixa de 2.000 € i, si cobres poc, la reducció de l'art. 20 (fins a 7.302 €).</div>
             ${wf}</div>
 
           <div class="wt-card"><div class="wt-h">2 · El mínim personal i familiar <span>· ${p ? `${eur(w.MINPERFA)}${delta(w.MINPERFA, p.MINPERFA)}` : eur(w.MINPERFA)}</span></div>
             <div class="wt-p">La part de la renda que no tributa perquè cobreix les necessitats bàsiques teves i de la teva família.</div>
-            <div class="wt-wf">${minRows.map(([l, k, sub]) => `<div class="wt-lab">${l}<code>${k} · ${sub}</code></div>
+            <div class="wt-wf">${minRows.map(([l, k, sub]) => `<div class="wt-lab">${l}<code>${sub}</code></div>
               <div class="wt-track"><div class="wt-bar wt-min" style="left:0;width:${w[k] / maxMin * 100}%"></div></div><div class="wt-num">${eur(w[k])}</div>`).join('')}</div>
             ${p ? '<div class="wt-p" style="margin-top:8px">El mínim no depèn del sou: és el mateix abans i després de l\'increment.</div>' : ''}</div>
 
-          <div class="wt-card"><div class="wt-h">3 · Estàs per sota del límit sense retenció?</div>
-            <div class="wt-kv"><span>Límit per a ${w.NUMDES >= 2 ? '2 o més fills' : w.NUMDES === 1 ? '1 fill' : 'cap fill'} (taula 1, situació general)</span><span>${eur(w.TABLA1)}</span>
-              <span>El teu sou brut</span><span>${eur(R)}</span></div>
-            <div style="margin-top:8px">${exentLine}${p && p.EXENTOS !== w.EXENTOS ? ' <span class="wt-pill wt-warn">abans de l\'increment: ' + (p.EXENTOS ? 'exempt' : 'no exempt') + '</span>' : ''}</div></div>
-
-          <div class="wt-card"><div class="wt-h">4 · L'escala s'aplica dues vegades <span>· escala ${region}</span></div>
-            <div class="wt-p">Quota = escala(base) − escala(mínim). El mínim «tributa» als trams més baixos i se't torna.</div>
-            <div class="wt-rowlab">escala(BASE ${eur(w.BASE)}) = <b>${eur(w.CUOTA1)}</b>${p ? delta(w.CUOTA1, p.CUOTA1) : ''}</div>${brkBar(w.BASE, maxB, w.ESCALA, p ? p.BASE : null)}
-            <div class="wt-rowlab">escala(MÍNIM ${eur(w.MINPERFA)}) = <b>${eur(w.CUOTA2)}</b></div>${brkBar(w.MINPERFA, maxB, w.ESCALA)}
-            <div class="wt-kv"><span>Diferència</span><span>${eur(preCap)}</span>
-              ${w.LIMITE != null ? `<span>Límit del 43 % (sous ≤ 35.200 €): 0,43 × (sou − límit taula 1)</span><span>${eur(Math.max(0, w.LIMITE))}${w.CAPPED ? ' ← s\'aplica' : ''}</span>` : ''}
-              <span><b>Quota de retenció</b></span><span><b>${p ? `${eur(w.CUOTA)}${delta(w.CUOTA, p.CUOTA)}` : eur(w.CUOTA)}</b></span></div></div>
-
-          <div class="wt-card"><div class="wt-h">5 · El tipus de retenció</div>
-            <div class="wt-kv"><span>Quota ÷ sou brut × 100, truncat a 2 decimals</span><span>${pct(w.TIPO_RAW)}</span>
-              ${w.FLOOR_APPLIED ? `<span>Mínim del 2 % per contracte temporal</span><span>${pct(w.TIPO)}</span>` : ''}</div>
+          <div class="wt-card"><div class="wt-h">3 · Dues escales: l'estatal i la ${aut}</div>
+            <div class="wt-p">L'IRPF es paga meitat a l'Estat i meitat a la comunitat. A cada escala: quota = escala(base) − escala(mínim). El mínim «tributa» als trams més baixos i se't resta.</div>
+            ${scaleBlock('estatal', w.ESCALA_EST, w.CUOTA_EST_BASE, w.CUOTA_EST_MIN, w.Q_EST, 'Q_EST')}
+            ${scaleBlock(aut, w.ESCALA_AUT, w.CUOTA_AUT_BASE, w.CUOTA_AUT_MIN, w.Q_AUT, 'Q_AUT')}</div>
+          ${smiCard}
+          <div class="wt-card"><div class="wt-h">${n} · El teu IRPF</div>
             <div class="wt-big">
-              <div><div class="wt-rowlab">Tipus</div><div class="wt-n">${pct(w.TIPO)}</div>${p ? `<div class="wt-was">abans ${pct(p.TIPO)}</div>` : ''}</div>
-              <div><div class="wt-rowlab">Retenció anual</div><div class="wt-n wt-n2">${eur(w.IMPORTE)}</div>${p ? `<div class="wt-was">abans ${eur(p.IMPORTE)}</div>` : ''}</div>
-              ${p ? `<div><div class="wt-rowlab">De cada euro de l'increment</div><div class="wt-n wt-n2">${dR > 0 ? Math.round(dImp / dR * 100) : 0} cèntims</div><div class="wt-was">van a l'IRPF</div></div>`
+              <div><div class="wt-rowlab">IRPF anual</div><div class="wt-n">${eur(w.QUOTA)}</div>${p ? `<div class="wt-was">abans ${eur(p.QUOTA)}</div>` : ''}</div>
+              <div><div class="wt-rowlab">Tipus efectiu</div><div class="wt-n wt-n2">${pct(w.TIPUS_EFECTIU)}</div>${p ? `<div class="wt-was">abans ${pct(p.TIPUS_EFECTIU)}</div>` : '<div class="wt-was">IRPF ÷ sou brut</div>'}</div>
+              ${p ? `<div><div class="wt-rowlab">De cada euro de l'increment</div><div class="wt-n wt-n2">${dR > 0 ? Math.round(dQ / dR * 100) : 0} cèntims</div><div class="wt-was">van a l'IRPF</div></div>`
                   : `<div><div class="wt-rowlab">Tipus marginal</div><div class="wt-n wt-n2">${pct(w.MARGINAL)}</div><div class="wt-was">IRPF de l'euro següent</div></div>`}
             </div></div>
         </div>`;

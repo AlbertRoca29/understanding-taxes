@@ -1,6 +1,8 @@
 // ── Configuració i utilitats compartides ─────────────────────────────────────
-const API_BASE = 'https://understanding-taxes-111926362104.europe-west1.run.app';
-// const API_BASE = 'http://localhost:8000';
+// En local (frontend servit des de localhost) es fa servir el backend local.
+const API_BASE = ['localhost', '127.0.0.1'].includes(location.hostname)
+    ? 'http://localhost:8000'
+    : 'https://understanding-taxes-111926362104.europe-west1.run.app';
 
 // Mateixa condició que el layout de dues columnes a style.css
 const TWO_COLUMN_MQ = window.matchMedia('(min-width: 768px) and (orientation: landscape), (min-width: 1024px)');
@@ -88,6 +90,21 @@ function resultHero(label, value, sub) {
         ${sub ? `<div class="result-hero-sub">${sub}</div>` : ''}
     </div>`;
 }
+// Opció «dues targetes»: xifra real gran + el que es veurà a la nòmina, en petit.
+function resultHeroPair(label, value, sub, sideLabel, sideValue, sideSub) {
+    return `<div class="result-hero result-hero-pair">
+        <div>
+            <div class="result-hero-label">${label}</div>
+            <div class="result-hero-value">${value}</div>
+            ${sub ? `<div class="result-hero-sub">${sub}</div>` : ''}
+        </div>
+        <div class="result-hero-side">
+            <div class="result-hero-side-label">${sideLabel}</div>
+            <div class="result-hero-side-value">${sideValue}</div>
+            ${sideSub ? `<div class="result-hero-sub">${sideSub}</div>` : ''}
+        </div>
+    </div>`;
+}
 function resultSection(title, rows) {
     const body = rows.map(([label, amount, cls]) =>
         `<tr${cls ? ` class="${cls}"` : ''}><td>${label}</td><td class="amount">${amount}</td></tr>`).join('');
@@ -126,14 +143,14 @@ document.addEventListener('keydown', e => {
 // [clau del backend, etiqueta, base mínima mensual]. Mantenir sincronitzat amb
 // SS_BASE_MIN_BY_GROUP a backend/variables.py.
 const GRUPS_COTITZACIO = [
-    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', 'Enginyers, llicenciats, alta direcció', 1929.00],
-    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  'Enginyers tècnics, tècnics titulats',   1599.60],
-    ['Grup 3 – Caps administratius i de taller',     'Caps administratius i de taller',        1391.70],
-    ['Grup 4 – Ajudants no titulats',                'Ajudants no titulats',                   1381.20],
-    ['Grup 5 – Oficials administratius',             'Oficials administratius',                1381.20],
-    ['Grup 6 – Subalterns',                          'Subalterns',                             1381.20],
-    ['Grup 7 – Auxiliars administratius',            'Auxiliars administratius',               1381.20],
-    ['Grups 8-11 – Oficials, especialistes i peons', 'Oficials, especialistes i peons',        1381.20],
+    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', 'Enginyers, llicenciats, alta direcció', 1989.30],
+    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  'Enginyers tècnics, tècnics titulats',   1649.70],
+    ['Grup 3 – Caps administratius i de taller',     'Caps administratius i de taller',        1435.20],
+    ['Grup 4 – Ajudants no titulats',                'Ajudants no titulats',                   1424.40],
+    ['Grup 5 – Oficials administratius',             'Oficials administratius',                1424.40],
+    ['Grup 6 – Subalterns',                          'Subalterns',                             1424.40],
+    ['Grup 7 – Auxiliars administratius',            'Auxiliars administratius',               1424.40],
+    ['Grups 8-11 – Oficials, especialistes i peons', 'Oficials, especialistes i peons',        1424.40],
 ];
 const _grupNum = i => i === GRUPS_COTITZACIO.length - 1 ? '8–11' : String(i + 1);
 const _grupLast = i => i === GRUPS_COTITZACIO.length - 1 ? '11' : String(i + 1);

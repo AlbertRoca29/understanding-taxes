@@ -18,7 +18,7 @@
             <!-- LEFT: form -->
             <div class="form-panel">
                 <h1>Calculadora de sou net</h1>
-                <p class="page-subtitle">Del salari brut al sou que arriba al teu compte.</p>
+                <p class="page-subtitle">Del salari brut al que guanyes de veritat.</p>
                 <form id="irpfForm">
                     <div class="form-row">
                         <label for="gross">Sou brut anual <span class="req">*</span></label>
@@ -57,14 +57,17 @@
         watchIds: ['gross'],
     });
 
-    function renderResult(r, npagues) {
+    function renderResult(r, npagues, region) {
         const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
         const neg = n => '−' + fmtEur(n);
+        const w = r.walkthrough;
         const brutAnual = r.rendiment_brut_treball;
         const netAnual = brutAnual - r.total_ss_anual - r.cuota_irpf_anual;
         const heroSub = [`Net anual: <b>${fmtEur(netAnual)}</b>`];
         if (npagues !== 12) heroSub.push(`Equivalent mensual (÷12): ${fmtEur(r.sou_net_mensual_equivalent)}`);
-        return resultHero(`Sou net per paga (${npagues})`, fmtEur(r.sou_net_per_paga), heroSub.join(' · '))
+        const autLabel = region === 'Mitjana espanyola' ? 'autonòmica (mitjana)' : 'catalana';
+        return resultHeroPair(`Sou net per paga (${npagues})`, fmtEur(r.sou_net_per_paga), heroSub.join(' · '),
+                'A la nòmina hi veuràs', fmtEur(r.nomina_net_per_paga), 'per paga')
             + resultSection('Cotització SS', [
                 ['Base mensual', `<b>${fmtEur(r.base_ss_mensual)}</b>`],
                 [`Contingències (${ssShare(r.ss_contingencies_comunes_mensual)})`, neg(r.ss_contingencies_comunes_mensual), 'sub'],
@@ -76,13 +79,15 @@
             + resultSection('IRPF', [
                 ['Brut anual', fmtEur(r.rendiment_brut_treball)],
                 ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
-                ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
+                ['− Despeses deduïbles', neg(r.gastos_deducibles), 'minus'],
                 ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
-                ['Base de retenció', fmtEur(r.base_imponible), 'total'],
+                ['Base liquidable', fmtEur(r.base_imponible), 'total'],
                 ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
-                ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
-                ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
-                ['Et queda després d\'IRPF (1 − retenció)', fmtPct(100 - r.tipo_retencio), 'sub'],
+                ['Quota estatal', fmtEur(w.Q_EST)],
+                [`Quota ${autLabel}`, fmtEur(w.Q_AUT)],
+                ...(w.DED_SMI > 0 ? [['− Deducció per rendiments del treball', neg(w.DED_SMI), 'minus']] : []),
+                ['IRPF anual', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`, 'total'],
+                ['Tipus efectiu', `<b>${fmtPct(r.tipus_efectiu)}</b>`],
                 ['Marginal', `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
             ])
             + resultSection(`Per paga (${npagues})`, [
@@ -94,7 +99,7 @@
             + resultSection('Anual', [
                 ['Brut', fmtEur(brutAnual)],
                 ['− SS', neg(r.total_ss_anual), 'minus'],
-                [`− IRPF (${fmtPct(r.tipo_retencio)})`, neg(r.cuota_irpf_anual), 'minus'],
+                [`− IRPF (${fmtPct(r.tipus_efectiu)})`, neg(r.cuota_irpf_anual), 'minus'],
                 ['Net', fmtEur(netAnual), 'total'],
                 ['Et queda del brut', `<b>${fmtPct(brutAnual ? netAnual / brutAnual * 100 : NaN)}</b>`],
             ]);
@@ -120,7 +125,7 @@
         try {
             const result = await postApi('/api/calculate', data);
             if (seq !== requestSeq) return; // ja hi ha una petició més nova
-            resultEl.innerHTML = renderResult(result, data.n_pagues);
+            resultEl.innerHTML = renderResult(result, data.n_pagues, profile.region);
             if (result.walkthrough) Walkthrough.render(wtEl, result.walkthrough, null, { region: profile.region });
 
             if (Array.isArray(result.plots)) {
