@@ -97,6 +97,48 @@ function resultSection(title, rows) {
     </section>`;
 }
 
+// Desglossament complet d'un sou (calculadora i net → brut): SS, IRPF, per paga i anual
+function salaryBreakdown(r, npagues) {
+    const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
+    const neg = n => '−' + fmtEur(n);
+    const brutAnual = r.rendiment_brut_treball;
+    const netAnual = salaryNetAnnual(r);
+    return resultSection('Cotització SS', [
+        ['Base mensual', `<b>${fmtEur(r.base_ss_mensual)}</b>`],
+        [`Contingències (${ssShare(r.ss_contingencies_comunes_mensual)})`, neg(r.ss_contingencies_comunes_mensual), 'sub'],
+        [`Atur (${ssShare(r.ss_atur_mensual)})`, neg(r.ss_atur_mensual), 'sub'],
+        [`Formació (${ssShare(r.ss_formacio_mensual)})`, neg(r.ss_formacio_mensual), 'sub'],
+        [`MEI (${ssShare(r.ss_mei_mensual)})`, neg(r.ss_mei_mensual), 'sub'],
+        ['Total SS', `${neg(r.total_ss_mensual)}/mes<span class="amount-secondary">${neg(r.total_ss_anual)}/any</span>`, 'total'],
+    ])
+    + resultSection('IRPF', [
+        ['Brut anual', fmtEur(r.rendiment_brut_treball)],
+        ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
+        ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
+        ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
+        ['Base de retenció', fmtEur(r.base_imponible), 'total'],
+        ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
+        ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
+        ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
+        ['Et queda després d\'IRPF (1 − retenció)', fmtPct(100 - r.tipo_retencio), 'sub'],
+        ['Marginal', `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
+    ])
+    + resultSection(`Per paga (${npagues})`, [
+        ['Brut', fmtEur(r.gross_per_paga)],
+        ['− SS', neg(r.ss_per_paga), 'minus'],
+        ['− IRPF', neg(r.irpf_per_paga), 'minus'],
+        ['Net', fmtEur(r.sou_net_per_paga), 'total'],
+    ])
+    + resultSection('Anual', [
+        ['Brut', fmtEur(brutAnual)],
+        ['− SS', neg(r.total_ss_anual), 'minus'],
+        [`− IRPF (${fmtPct(r.tipo_retencio)})`, neg(r.cuota_irpf_anual), 'minus'],
+        ['Net', fmtEur(netAnual), 'total'],
+        ['Et queda del brut', `<b>${fmtPct(brutAnual ? netAnual / brutAnual * 100 : NaN)}</b>`],
+    ]);
+}
+function salaryNetAnnual(r) { return r.rendiment_brut_treball - r.total_ss_anual - r.cuota_irpf_anual; }
+
 // ── Gràfics ──────────────────────────────────────────────────────────────────
 function chartCard(base64, alt, kind) {
     return `<div class="chart-card chart-${kind}" role="button" tabindex="0" title="Ampliar">
@@ -320,6 +362,7 @@ async function scrollToResultsIfStacked() {
         <div class="navbar-inner">
             <div class="navbar-links">
                 <a href="index.html"${page === 'index' ? ' class="active" aria-current="page"' : ''}>Calculadora sou net</a>
+                <a href="net-brut.html"${page === 'net-brut' ? ' class="active" aria-current="page"' : ''}>Del net al brut</a>
                 <a href="increment.html"${page === 'increment' ? ' class="active" aria-current="page"' : ''}>Increment de sou</a>
             </div>
             <a class="navbar-author" href="https://github.com/AlbertRoca29" target="_blank" rel="noopener" title="Albert Roca Llevadot" aria-label="Albert Roca Llevadot a GitHub">

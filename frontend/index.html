@@ -58,46 +58,10 @@
     });
 
     function renderResult(r, npagues) {
-        const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
-        const neg = n => '−' + fmtEur(n);
-        const brutAnual = r.rendiment_brut_treball;
-        const netAnual = brutAnual - r.total_ss_anual - r.cuota_irpf_anual;
-        const heroSub = [`Net anual: <b>${fmtEur(netAnual)}</b>`];
+        const heroSub = [`Net anual: <b>${fmtEur(salaryNetAnnual(r))}</b>`];
         if (npagues !== 12) heroSub.push(`Equivalent mensual (÷12): ${fmtEur(r.sou_net_mensual_equivalent)}`);
         return resultHero(`Sou net per paga (${npagues})`, fmtEur(r.sou_net_per_paga), heroSub.join(' · '))
-            + resultSection('Cotització SS', [
-                ['Base mensual', `<b>${fmtEur(r.base_ss_mensual)}</b>`],
-                [`Contingències (${ssShare(r.ss_contingencies_comunes_mensual)})`, neg(r.ss_contingencies_comunes_mensual), 'sub'],
-                [`Atur (${ssShare(r.ss_atur_mensual)})`, neg(r.ss_atur_mensual), 'sub'],
-                [`Formació (${ssShare(r.ss_formacio_mensual)})`, neg(r.ss_formacio_mensual), 'sub'],
-                [`MEI (${ssShare(r.ss_mei_mensual)})`, neg(r.ss_mei_mensual), 'sub'],
-                ['Total SS', `${neg(r.total_ss_mensual)}/mes<span class="amount-secondary">${neg(r.total_ss_anual)}/any</span>`, 'total'],
-            ])
-            + resultSection('IRPF', [
-                ['Brut anual', fmtEur(r.rendiment_brut_treball)],
-                ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
-                ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
-                ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
-                ['Base de retenció', fmtEur(r.base_imponible), 'total'],
-                ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
-                ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
-                ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
-                ['Et queda després d\'IRPF (1 − retenció)', fmtPct(100 - r.tipo_retencio), 'sub'],
-                ['Marginal', `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
-            ])
-            + resultSection(`Per paga (${npagues})`, [
-                ['Brut', fmtEur(r.gross_per_paga)],
-                ['− SS', neg(r.ss_per_paga), 'minus'],
-                ['− IRPF', neg(r.irpf_per_paga), 'minus'],
-                ['Net', fmtEur(r.sou_net_per_paga), 'total'],
-            ])
-            + resultSection('Anual', [
-                ['Brut', fmtEur(brutAnual)],
-                ['− SS', neg(r.total_ss_anual), 'minus'],
-                [`− IRPF (${fmtPct(r.tipo_retencio)})`, neg(r.cuota_irpf_anual), 'minus'],
-                ['Net', fmtEur(netAnual), 'total'],
-                ['Et queda del brut', `<b>${fmtPct(brutAnual ? netAnual / brutAnual * 100 : NaN)}</b>`],
-            ]);
+            + salaryBreakdown(r, npagues);
     }
 
     // Form submit

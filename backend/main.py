@@ -213,9 +213,32 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "reduction_by_work":                   reduccio_rendiments_treball,
     }
 
-@app.post("/api/calculate")
-async def calculate_salary(data: SalaryRequest):
-    calc = data.calculate(data.gross)
+class NetToGrossRequest(Profile):
+    net_per_paga: float
+
+
+def find_gross_for_net(profile: Profile, target_net: Decimal) -> Decimal:
+    """Brut anual (sense espècie) que dona `target_net` net per paga.
+
+    El net creix amb el brut (fora de petits salts als límits d'exempció), així que
+    una bisecció al cèntim troba el brut mínim que arriba al net demanat."""
+    net = lambda g: profile.calculate(g)["net_per_paga"]
+    lo, hi = Decimal("0"), max(Decimal("1000"), target_net * profile.n_pagues * 2)
+    while net(hi) < target_net:
+        lo, hi = hi, hi * 2
+    while hi - lo > Decimal("0.01"):
+        mid = ((lo + hi) / 2).quantize(Decimal("0.01"))
+        if mid in (lo, hi):
+            break
+        if net(mid) >= target_net:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+def salary_response(data: Profile, gross) -> dict:
+    calc = data.calculate(gross)
 
     # Step 2: Add the bar chart plot (plot_salary_blocks)
     figs = []
@@ -267,6 +290,17 @@ async def calculate_salary(data: SalaryRequest):
         # ── Charts ──────────────────────────────────────────────────────────
         "plots": figs,
     }
+
+
+@app.post("/api/calculate")
+async def calculate_salary(data: SalaryRequest):
+    return salary_response(data, data.gross)
+
+
+@app.post("/api/net-to-gross")
+async def calculate_net_to_gross(data: NetToGrossRequest):
+    gross = find_gross_for_net(data, Decimal(str(data.net_per_paga)))
+    return {"gross": float(gross), **salary_response(data, gross)}
 
 
 @app.post("/api/increment")
