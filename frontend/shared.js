@@ -29,6 +29,23 @@ function bindPills(groupId, hiddenId) {
     });
 }
 
+// Nombre de pagues: 12 / 14 / Altre (camp numèric visible només amb "Altre")
+function bindPaguesPills(groupId, inputId) {
+    const input = document.getElementById(inputId);
+    document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            document.querySelectorAll('#' + groupId + ' .pill').forEach(p => {
+                p.classList.toggle('selected', p === pill);
+                p.setAttribute('aria-pressed', String(p === pill));
+            });
+            const other = pill.dataset.value === 'other';
+            input.hidden = !other;
+            if (other) { input.value = ''; input.focus(); }
+            else input.value = pill.dataset.value;
+        });
+    });
+}
+
 // POST JSON a l'API amb missatges d'error llegibles
 async function postApi(path, body) {
     let response;
@@ -106,19 +123,79 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Grups de cotització (compartit entre pàgines) ───────────────────────────
+// [clau del backend, etiqueta, base mínima mensual]. Mantenir sincronitzat amb
+// SS_BASE_MIN_BY_GROUP a backend/variables.py.
 const GRUPS_COTITZACIO = [
-    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', 'Grup 1 – Enginyers, Llicenciats, Alta direcció'],
-    ['Grup 2 – Enginyers tècnics/Tècnics titulats', 'Grup 2 – Enginyers tècnics, Tècnics titulats'],
-    ['Grup 3 – Caps administratius i de taller', 'Grup 3 – Caps administratius i de taller'],
-    ['Grup 4 – Ajudants no titulats', 'Grup 4 – Ajudants no titulats'],
-    ['Grup 5 – Oficials administratius', 'Grup 5 – Oficials administratius'],
-    ['Grup 6 – Subalterns', 'Grup 6 – Subalterns'],
-    ['Grup 7 – Auxiliars administratius', 'Grup 7 – Auxiliars administratius'],
-    ['Grups 8-11 – Oficials, especialistes i peons', 'Grups 8-11 – Oficials, especialistes i peons'],
+    ['Grup 1 – Enginyers/Llicenciats/Alta direcció', 'Enginyers, llicenciats, alta direcció', 1929.00],
+    ['Grup 2 – Enginyers tècnics/Tècnics titulats',  'Enginyers tècnics, tècnics titulats',   1599.60],
+    ['Grup 3 – Caps administratius i de taller',     'Caps administratius i de taller',        1391.70],
+    ['Grup 4 – Ajudants no titulats',                'Ajudants no titulats',                   1381.20],
+    ['Grup 5 – Oficials administratius',             'Oficials administratius',                1381.20],
+    ['Grup 6 – Subalterns',                          'Subalterns',                             1381.20],
+    ['Grup 7 – Auxiliars administratius',            'Auxiliars administratius',               1381.20],
+    ['Grups 8-11 – Oficials, especialistes i peons', 'Oficials, especialistes i peons',        1381.20],
 ];
-function fillGrupSelect(id) {
-    document.getElementById(id).innerHTML = GRUPS_COTITZACIO
-        .map(([value, label], i) => `<option value="${value}"${i === 0 ? ' selected' : ''}>${label}</option>`).join('');
+const _grupNum = i => i === GRUPS_COTITZACIO.length - 1 ? '8–11' : String(i + 1);
+const _grupLast = i => i === GRUPS_COTITZACIO.length - 1 ? '11' : String(i + 1);
+
+// Agrupa els grups que donen el mateix resultat per a una base mensual donada:
+// la base de cotització és max(sou/12, mínim del grup), així que tots els grups
+// amb mínim ≤ base són equivalents, i també els que comparteixen mínim.
+// Retorna [[primerIdx, darrerIdx], ...].
+function grupBuckets(monthlyBase) {
+    const buckets = [];
+    GRUPS_COTITZACIO.forEach(([, , min], i) => {
+        const eff = Math.max(min, monthlyBase || 0);
+        const last = buckets[buckets.length - 1];
+        if (last && last.eff === eff) last.to = i;
+        else buckets.push({ from: i, to: i, eff });
+    });
+    return buckets.map(b => [b.from, b.to]);
+}
+function _bucketLabel([from, to]) {
+    if (from === to) return `Grup ${_grupNum(from)} – ${GRUPS_COTITZACIO[from][1]}`;
+    if (from === 0) return 'Tots els grups';
+    return `Grups ${from + 1}–${_grupLast(to)} – Altres categories`;
+}
+
+// Desplegable que s'adapta al sou: només mostra les opcions que canvien el
+// resultat i es plega quan el grup no afecta. `getAnnualGross` retorna el sou
+// brut anual que determina la base (NaN si encara no s'ha escrit).
+function initGrupSelect(id, getAnnualGross, watchIds) {
+    const select = document.getElementById(id);
+    const note = document.createElement('div');
+    note.className = 'grup-collapsed';
+    note.innerHTML = '<span class="grup-ok">✓</span> No afecta amb aquest sou';
+    const hint = document.createElement('div');
+    hint.className = 'field-hint';
+    select.after(note, hint);
+
+    let chosen = 0; // índex del grup triat (per defecte, grup 1)
+    let buckets = [];
+    select.addEventListener('change', () => {
+        const [from, to] = buckets[select.selectedIndex];
+        chosen = from === to ? from : to; // una opció agrupada → la categoria més genèrica
+    });
+
+    const render = () => {
+        const gross = getAnnualGross();
+        const hasGross = Number.isFinite(gross) && gross > 0;
+        buckets = grupBuckets(hasGross ? gross / 12 : 0);
+        select.innerHTML = buckets.map((b, i) => {
+            const sel = chosen >= b[0] && chosen <= b[1];
+            return `<option value="${GRUPS_COTITZACIO[b[0]][0]}"${sel ? ' selected' : ''}>${_bucketLabel(b)}</option>`;
+        }).join('');
+        const collapsed = buckets.length === 1;
+        select.hidden = collapsed;
+        note.hidden = !collapsed;
+        const g1Threshold = GRUPS_COTITZACIO[0][2] * 12;
+        hint.textContent = collapsed ? ''
+            : hasGross ? 'Només hi surten els grups que canvien el resultat amb aquest sou.'
+            : `Surt a la capçalera de la nòmina. A partir de ${Math.round(g1Threshold).toLocaleString('ca-ES')} € bruts anuals no afecta el resultat.`;
+        hint.hidden = !hint.textContent;
+    };
+    watchIds.forEach(w => document.getElementById(w).addEventListener('input', render));
+    render();
 }
 
 // ── Camps d'import (€) amb separador de milers mentre s'escriu ──────────────
