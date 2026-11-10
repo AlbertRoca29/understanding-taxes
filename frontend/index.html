@@ -37,8 +37,13 @@
                     </div>
 
                     <div class="form-row">
-                        <label for="n_pagues">Nombre de pagues <span class="req">*</span></label>
-                        <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" step="1" value="14" placeholder="Ex: 14">
+                        <label>Nombre de pagues <span class="req">*</span></label>
+                        <div class="pill-group" id="paguesPills">
+                            <button type="button" aria-pressed="false" class="pill" data-value="12">12</button>
+                            <button type="button" aria-pressed="true" class="pill selected" data-value="14">14</button>
+                            <button type="button" aria-pressed="false" class="pill" data-value="other">Altre</button>
+                            <input type="number" id="n_pagues" name="n_pagues" class="pagues-other" required min="1" max="15" step="1" value="14" placeholder="Nº" aria-label="Nombre de pagues" hidden>
+                        </div>
                     </div>
 
                     <div class="form-row">
@@ -129,7 +134,10 @@
 
     <script src="shared.js"></script>
     <script>
-    fillGrupSelect('grup_cotitzacio');
+    initGrupSelect('grup_cotitzacio',
+        () => readMoney('gross') + (readMoney('retribucio_en_especie_ann') || 0),
+        ['gross', 'retribucio_en_especie_ann']);
+    bindPaguesPills('paguesPills', 'n_pagues');
     initMoneyInputs();
     bindPills('regionPills', 'region');
     bindPills('agePills', 'age');
