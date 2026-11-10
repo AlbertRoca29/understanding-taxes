@@ -71,14 +71,18 @@ class IncrementRequest(Profile):
 
 
 def walkthrough(calc) -> dict:
-    """Passos de l'algorisme oficial, en float, per al desglossament del frontend."""
-    out = {}
-    for k, v in calc["trace"].items():
-        out[k] = float(v) if isinstance(v, Decimal) else v
+    """Passos del càlcul de l'impost real, en float, per al desglossament del frontend."""
+    def esc(scale):
+        return [[float(lo), None if hi is None else float(hi), float(rate)] for lo, hi, rate in scale.brackets]
+    out = {k: float(v) if isinstance(v, Decimal) else v for k, v in calc["real"].items()}
     out["SS"] = float(calc["total_ss_anual"])
     out["OTHER_DEDUCTIONS"] = float(calc["other_deductions"])
-    out["ESCALA"] = [[float(lo), None if hi is None else float(hi), float(rate)] for lo, hi, rate in calc["escala"].brackets]
+    out["ESCALA_EST"] = esc(calc["escala_estatal"])
+    out["ESCALA_AUT"] = esc(calc["escala_autonomica"])
+    out["TIPUS_EFECTIU"] = float(calc["tipus_efectiu"])
     out["MARGINAL"] = float(calc["marginal_irpf_percent"])
+    out["NOMINA_NET"] = float(calc["nomina_net_per_paga"])
+    out["NET_PAGA"] = float(calc["net_per_paga"])
     return out
 
 def fig_to_base64(fig):
@@ -89,7 +93,7 @@ def fig_to_base64(fig):
     plt.close(fig)
     return img_base64
 
-from utils import calcular_retencion, redondear1, truncar, IRPFScale
+from utils import calcular_retencion, calcular_impost_real, redondear1, truncar, IRPFScale
 
 def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region):
     # ── Stage 1: SS base mensual ──────────────────────────────────────────────
@@ -123,45 +127,45 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         base = apply_base_limits(retrib / 12, SS_BASE_MIN_BY_GROUP[grup_cotitzacio], SS_BASE_MAX_MONTHLY)
         return base * ss_total_rate * 12
 
-    # ── Stages 3-7: algorisme oficial de retencions AEAT 2026 ──────────────────
+    # ── Stage 3: Impost real anual (la quota que acabes pagant) ─────────────
     # Les "altres deduccions" són despeses de l'art. 19.2 (quotes sindicals,
-    # col·legis professionals…), que l'algorisme suma a COTIZACIONES.
+    # col·legis professionals…), que se sumen a les cotitzacions.
+    escala_estatal = IRPFScale(IRPF_SCALE_ESTATAL)
     if region == "Catalunya":
-        escala_irpf = IRPFScale.combined_scale(IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL)
-    else:  # Mitjana espanyola: state scale counts twice (= escala de retencions oficial)
-        escala_irpf = IRPFScale.combined_scale(IRPF_SCALE_ESTATAL, IRPF_SCALE_ESTATAL)
+        escala_autonomica = IRPFScale(IRPF_SCALE_CATALUNYA)
+    else:  # Mitjana espanyola: escala autonòmica supletòria = l'estatal
+        escala_autonomica = IRPFScale(IRPF_SCALE_ESTATAL)
 
-    def retencio(retrib):
-        return calcular_retencion(retrib, ss_anual(retrib) + other_deductions, fam, contract_type, escala_irpf)
+    def impost_real(retrib):
+        return calcular_impost_real(retrib, ss_anual(retrib) + other_deductions, fam, escala_estatal, escala_autonomica)
 
-    trace = retencio(gross_including_benefits)
-    rendiment_brut_treball      = gross_including_benefits
-    gastos_deducibles           = trace["OTROSGASTOS"]
-    rendiment_net_treball       = trace["RNT"]
-    reduccio_rendiments_treball = trace["RED20"]
-    base_imponible              = trace["BASE"]
-    minim_personal_familiar     = trace["MINPERFA"]
-    tipo_retencio               = trace["TIPO"]
-    # Import anual que es reté de veritat: RETRIB × TIPO (tipus ja truncat)
-    cuota_irpf_anual            = trace["IMPORTE"]
+    real = impost_real(gross_including_benefits)
+    cuota_irpf_anual = real["QUOTA"]
+    tipus_efectiu = cuota_irpf_anual / gross_including_benefits * Decimal("100") if gross_including_benefits > 0 else Decimal("0")
 
-    # ── Stage 8: Marginal IRPF rate ──────────────────────────────────────────
-    # La quota és lineal a trossos: la derivada amb un pas d'1 € és exacta fora dels
-    # punts d'inflexió i ja inclou SS, reducció art. 20, límit del 43 % i exempció.
-    if trace["FLOOR_APPLIED"]:
-        marginal_irpf = tipo_retencio / Decimal("100")
-    else:
-        marginal_irpf = retencio(gross_including_benefits + 1)["CUOTA"] - trace["CUOTA"]
+    # Marginal real: IRPF de l'euro brut següent (inclou SS, reducció art. 20 i deducció SMI)
+    marginal_irpf = impost_real(gross_including_benefits + 1)["QUOTA_RAW"] - real["QUOTA_RAW"]
     marginal_irpf_percent = truncar(marginal_irpf * Decimal("100"))
 
-    # ── Stage 9: Per paga ────────────────────────────────────────────────────
+    # ── Stage 4: Nòmina (retenció amb l'algorisme oficial de l'AEAT 2026) ────
+    # La retenció usa una única escala per a tot l'Estat (taula 2 = estatal × 2),
+    # independent de la comunitat autònoma.
+    escala_retencio = IRPFScale.combined_scale(IRPF_SCALE_ESTATAL, IRPF_SCALE_ESTATAL)
+    trace = calcular_retencion(gross_including_benefits, ss_anual(gross_including_benefits) + other_deductions,
+                               fam, contract_type, escala_retencio)
+    retencio_anual = trace["IMPORTE"]
+
+    # ── Stage 5: Per paga ────────────────────────────────────────────────────
     # SS is distributed proportionally across n_pagues so net_monthly_equivalent
     # stays invariant of n_pagues (same annual money, just split differently).
-    gross_per_paga = gross_including_benefits / Decimal(n_pagues)
-    ss_per_paga    = total_ss_anual / Decimal(n_pagues)
-    irpf_per_paga  = cuota_irpf_anual / Decimal(n_pagues)
+    n = Decimal(n_pagues)
+    gross_per_paga = gross_including_benefits / n
+    ss_per_paga    = total_ss_anual / n
+    irpf_per_paga  = cuota_irpf_anual / n
     net_per_paga   = gross_per_paga - ss_per_paga - irpf_per_paga
     net_monthly_equivalent = (gross_including_benefits - total_ss_anual - cuota_irpf_anual) / Decimal(12)
+    nomina_irpf_per_paga = retencio_anual / n
+    nomina_net_per_paga  = gross_per_paga - ss_per_paga - nomina_irpf_per_paga
 
     return {
         # ── SS breakdown ─────────────────────────────────────────────────────
@@ -173,16 +177,22 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "total_ss_mensual":                 total_ss_mensual,
         "total_ss_anual":                   total_ss_anual,
         # ── IRPF chain ───────────────────────────────────────────────────────
-        "rendiment_brut_treball":      rendiment_brut_treball,
-        "gastos_deducibles":           gastos_deducibles,
-        "rendiment_net_treball":       rendiment_net_treball,
-        "reduccio_rendiments_treball": reduccio_rendiments_treball,
-        "base_imponible":              base_imponible,
-        "minim_personal_familiar":     minim_personal_familiar,
+        "rendiment_brut_treball":      gross_including_benefits,
+        "gastos_deducibles":           real["OTROSGASTOS"],
+        "rendiment_net_treball":       real["RNT"],
+        "reduccio_rendiments_treball": real["RED20"],
+        "base_imponible":              real["BASE"],
+        "minim_personal_familiar":     real["MINPERFA"],
         "cuota_irpf_anual":            cuota_irpf_anual,
-        "tipo_retencio":               tipo_retencio,
-        "trace":                       trace,
-        "escala":                      escala_irpf,
+        "tipus_efectiu":               tipus_efectiu,
+        "real":                        real,
+        "escala_estatal":              escala_estatal,
+        "escala_autonomica":           escala_autonomica,
+        # ── Nòmina (retenció) ────────────────────────────────────────────────
+        "tipo_retencio":               trace["TIPO"],
+        "retencio_anual":              retencio_anual,
+        "nomina_irpf_per_paga":        redondear1(nomina_irpf_per_paga),
+        "nomina_net_per_paga":         redondear1(nomina_net_per_paga),
         # ── Marginal ─────────────────────────────────────────────────────────
         "marginal_irpf_rate":    marginal_irpf,
         "marginal_irpf_percent": marginal_irpf_percent,
@@ -209,8 +219,8 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "t_des_monthly":                       ss_atur_mensual,
         "ss_training_monthly":                 ss_formacio_mensual,
         "ss_mei_monthly":                      ss_mei_mensual,
-        "otros_gastos_generales":              gastos_deducibles,
-        "reduction_by_work":                   reduccio_rendiments_treball,
+        "otros_gastos_generales":              real["OTROSGASTOS"],
+        "reduction_by_work":                   real["RED20"],
     }
 
 @app.post("/api/calculate")
@@ -249,7 +259,11 @@ async def calculate_salary(data: SalaryRequest):
         "base_imponible":              float(round_euro(calc["base_imponible"])),
         "minim_personal_familiar":     float(round_euro(calc["minim_personal_familiar"])),
         "cuota_irpf_anual":            float(round_euro(calc["cuota_irpf_anual"])),
+        "tipus_efectiu":               float(calc["tipus_efectiu"]),
+        # ── Nòmina (el que hi veuràs: retenció de l'AEAT) ───────────────────
         "tipo_retencio":               float(calc["tipo_retencio"]),
+        "nomina_net_per_paga":         float(calc["nomina_net_per_paga"]),
+        "nomina_irpf_per_paga":        float(calc["nomina_irpf_per_paga"]),
         # ── Marginal ────────────────────────────────────────────────────────
         "marginal_irpf_rate":    float(calc["marginal_irpf_rate"]),
         "marginal_irpf_percent": float(calc["marginal_irpf_percent"]),
@@ -269,16 +283,27 @@ async def calculate_salary(data: SalaryRequest):
     }
 
 
+def summary(calc) -> dict:
+    return {
+        "tipus_efectiu": float(calc["tipus_efectiu"]),
+        "irpf_anual": float(round_euro(calc["cuota_irpf_anual"])),
+        "sou_net_per_paga": float(round_euro(calc["net_per_paga"])),
+        "nomina_net_per_paga": float(calc["nomina_net_per_paga"]),
+        "marginal_irpf_percent": float(calc["marginal_irpf_percent"]),
+        "walkthrough": walkthrough(calc),
+    }
+
+
 @app.post("/api/increment")
 async def calculate_increment(data: IncrementRequest):
     prev = data.calculate(data.previous_gross)
     new = data.calculate(data.new_gross)
     n = Decimal(data.n_pagues)
-    increment_annual_net  = (new["net_per_paga"]       - prev["net_per_paga"])       * n
     increment_monthly_net =  new["net_monthly_equivalent"] - prev["net_monthly_equivalent"]
     increment_annual_ss   = (new["cotitzacions_anuals"] - prev["cotitzacions_anuals"])
     increment_annual_irpf = (new["cuota_irpf_anual"]   - prev["cuota_irpf_anual"])
     increment_annual_brut = (new["gross_including_benefits"] - prev["gross_including_benefits"])
+    increment_annual_net  = increment_annual_brut - increment_annual_ss - increment_annual_irpf
     # Pie chart for the difference
     fig = viz_utils.plot_increment_difference_pie(prev, new, return_fig=True)
     pie_base64 = fig_to_base64(fig)
@@ -290,8 +315,6 @@ async def calculate_increment(data: IncrementRequest):
         "increment_annual_irpf": float(round_euro(increment_annual_irpf)),
         "increment_pie": pie_base64,
         # ── Resultat complet de cada sou (mateixes xifres que la calculadora) ──
-        "previous": {"tipo_retencio": float(prev["tipo_retencio"]), "irpf_anual": float(round_euro(prev["cuota_irpf_anual"])),
-                     "sou_net_per_paga": float(round_euro(prev["net_per_paga"])), "walkthrough": walkthrough(prev)},
-        "new": {"tipo_retencio": float(new["tipo_retencio"]), "irpf_anual": float(round_euro(new["cuota_irpf_anual"])),
-                "sou_net_per_paga": float(round_euro(new["net_per_paga"])), "walkthrough": walkthrough(new)},
+        "previous": summary(prev),
+        "new": summary(new),
     }

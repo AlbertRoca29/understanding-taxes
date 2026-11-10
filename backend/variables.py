@@ -1,26 +1,26 @@
 from decimal import Decimal
 
-# Seguretat Social 2026
-SS_BASE_MAX_MONTHLY = Decimal("4909.50")
+# Seguretat Social 2026 (Orden PJC/297/2026)
+SS_BASE_MAX_MONTHLY = Decimal("5101.20")
 SS_BASE_MIN_BY_GROUP = {
-    "Grup 1 – Enginyers/Llicenciats/Alta direcció": Decimal("1929.00"),
-    "Grup 2 – Enginyers tècnics/Tècnics titulats":  Decimal("1599.60"),
-    "Grup 3 – Caps administratius i de taller":     Decimal("1391.70"),
-    "Grup 4 – Ajudants no titulats":                Decimal("1381.20"),
-    "Grup 5 – Oficials administratius":             Decimal("1381.20"),
-    "Grup 6 – Subalterns":                          Decimal("1381.20"),
-    "Grup 7 – Auxiliars administratius":            Decimal("1381.20"),
-    "Grups 8-11 – Oficials, especialistes i peons": Decimal("1381.20"),
+    "Grup 1 – Enginyers/Llicenciats/Alta direcció": Decimal("1989.30"),
+    "Grup 2 – Enginyers tècnics/Tècnics titulats":  Decimal("1649.70"),
+    "Grup 3 – Caps administratius i de taller":     Decimal("1435.20"),
+    "Grup 4 – Ajudants no titulats":                Decimal("1424.40"),
+    "Grup 5 – Oficials administratius":             Decimal("1424.40"),
+    "Grup 6 – Subalterns":                          Decimal("1424.40"),
+    "Grup 7 – Auxiliars administratius":            Decimal("1424.40"),
+    "Grups 8-11 – Oficials, especialistes i peons": Decimal("1424.40"),
 }
 DEFAULT_SS_RATES = {
     "contingencies_common_worker": Decimal("0.0470"),
     "unemployment_worker_indefinite": Decimal("0.0155"),
     "unemployment_worker_temporary": Decimal("0.0160"),
     "training_worker": Decimal("0.0010"),
-    "mei_worker": Decimal("0.0013"),
+    "mei_worker": Decimal("0.0015"),
 }
 
-# IRPF 2025 (Escala estatal y autonómica)
+# IRPF 2026 — escala estatal (art. 63 LIRPF)
 IRPF_SCALE_ESTATAL = [
     (0, 12450, Decimal("0.095")),
     (12450, 20200, Decimal("0.12")),
@@ -29,16 +29,27 @@ IRPF_SCALE_ESTATAL = [
     (60000, 300000, Decimal("0.225")),
     (300000, None, Decimal("0.245"))
 ]
+# Escala autonòmica de Catalunya, vigent des de l'1-1-2025 (art. 611-1 Codi tributari
+# de Catalunya, redacció del Decret llei 5/2025). Mínim personal autonòmic = 5.550 € (art. 611-2).
 IRPF_SCALE_CATALUNYA = [
-    (0, 12450, Decimal("0.095")),
-    (12450, 17707, Decimal("0.12")),
-    (17707, 21000, Decimal("0.14")),
-    (21000, 33007, Decimal("0.15")),
-    (33007, 53407, Decimal("0.188")),
-    (53407, 90000, Decimal("0.215")),
+    (0, 12500, Decimal("0.095")),
+    (12500, 22000, Decimal("0.125")),
+    (22000, 33000, Decimal("0.16")),
+    (33000, 53000, Decimal("0.19")),
+    (53000, 90000, Decimal("0.215")),
     (90000, 120000, Decimal("0.235")),
-    (120000, None, Decimal("0.255")),
-  ]
+    (120000, 175000, Decimal("0.245")),
+    (175000, None, Decimal("0.255")),
+]
+
+# Deducció per obtenció de rendiments del treball (DA 61a LIRPF, RDL 5/2026): fa que
+# qui cobra el SMI 2026 (17.094 €) no pagui IRPF. Es resta de la quota líquida total.
+DEDUCCIO_SMI = {
+    "smi": Decimal("17094.00"),
+    "import": Decimal("590.89"),
+    "coef": Decimal("0.2"),
+    "limit": Decimal("20048.45"),
+}
 
 
 # Mínim contribuent general
