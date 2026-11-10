@@ -3,4 +3,3 @@ fastapi
 gunicorn
 uvicorn[standard]
 python-multipart
-matplotlib

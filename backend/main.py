@@ -4,12 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from decimal import Decimal
-import base64
-import io
 from utils import FamilySituation, IRPFScale, apply_base_limits, round_euro
 from variables import IRPF_SCALE_CATALUNYA, IRPF_SCALE_ESTATAL, SS_BASE_MIN_BY_GROUP, SS_BASE_MAX_MONTHLY, DEFAULT_SS_RATES
-import viz_utils
-import matplotlib.pyplot as plt
 
 app = FastAPI()
 
@@ -40,6 +36,9 @@ class Profile(BaseModel):
     disability_self_help: bool = False
     children: List[FamilyMember] = []
     ascendants: List[FamilyMember] = []
+    # Paga extra respecte d'un mes normal (bruts). Molts convenis paguen només el
+    # salari base a les extres, sense complements: llavors és < 1.
+    extra_ratio: float = 1.0
 
     def family(self) -> FamilySituation:
         return FamilySituation(
@@ -53,10 +52,12 @@ class Profile(BaseModel):
     def calculate(self, gross: float):
         return perform_calculation(
             Decimal(str(gross)), self.n_pagues, self.pagues_prorratejades, Decimal(str(self.retribucio_en_especie_ann)),
-            self.grup_cotitzacio, self.contract_type, Decimal(str(self.other_deductions)), self.family(), self.region)
+            self.grup_cotitzacio, self.contract_type, Decimal(str(self.other_deductions)), self.family(), self.region,
+            Decimal(str(min(max(self.extra_ratio, 0.1), 1.5))))
 
 class SalaryRequest(Profile):
     gross: float
+    with_curve: bool = True  # els càlculs auxiliars del frontend no necessiten la corba
 
 class IncrementRequest(Profile):
     previous_gross: float
@@ -81,17 +82,9 @@ def walkthrough(calc) -> dict:
     out["MARGINAL"] = float(calc["marginal_irpf_percent"])
     return out
 
-def fig_to_base64(fig):
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", facecolor="white", dpi=150)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-    plt.close(fig)
-    return img_base64
-
 from utils import calcular_retencion, redondear1, truncar, IRPFScale
 
-def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region):
+def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_especie_ann, grup_cotitzacio, contract_type, other_deductions, fam, region, extra_ratio=Decimal("1")):
     # ── Stage 1: SS base mensual ──────────────────────────────────────────────
     gross_including_benefits = gross + retribucio_en_especie_ann
     base_ss_mensual = apply_base_limits(
@@ -163,6 +156,25 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     net_per_paga   = gross_per_paga - ss_per_paga - irpf_per_paga
     net_monthly_equivalent = (gross_including_benefits - total_ss_anual - cuota_irpf_anual) / Decimal(12)
 
+    # Repartiment com a la nòmina real (en diners, sense l'espècie):
+    #  · la SS es cotitza 12 cops l'any sobre una base que ja inclou la prorrata de
+    #    les extres, així que les pagues extra no porten SS;
+    #  · l'IRPF es reté al mateix tipus a cada paga (també sobre l'espècie mensual);
+    #  · cada extra val `extra_ratio` mesos normals (1 = igual; < 1 = només salari base).
+    tipus = cuota_irpf_anual / gross_including_benefits if gross_including_benefits > 0 else Decimal("0")
+    n_extres = max(0, n_pagues - 12)
+    if n_extres:
+        mes = gross / (Decimal(12) + Decimal(n_extres) * extra_ratio)
+        extra = mes * extra_ratio
+        esp_mes = retribucio_en_especie_ann / Decimal(12)
+        net_paga_ordinaria = mes - total_ss_anual / Decimal(12) - tipus * (mes + esp_mes)
+        net_paga_extra     = extra - tipus * extra
+    else:
+        mes = gross / Decimal(n_pagues)
+        esp_mes = retribucio_en_especie_ann / Decimal(n_pagues)
+        net_paga_ordinaria = mes - total_ss_anual / Decimal(n_pagues) - tipus * (mes + esp_mes)
+        net_paga_extra     = None
+
     return {
         # ── SS breakdown ─────────────────────────────────────────────────────
         "base_ss_mensual":                  base_ss_mensual,
@@ -192,7 +204,9 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "irpf_per_paga":          redondear1(irpf_per_paga),
         "net_per_paga":           redondear1(net_per_paga),
         "net_monthly_equivalent": redondear1(net_monthly_equivalent),
-        # ── Pass-through for viz_utils (legacy keys kept for compatibility) ──
+        "net_paga_ordinaria":     redondear1(net_paga_ordinaria),
+        "net_paga_extra":         None if net_paga_extra is None else redondear1(net_paga_extra),
+        # ── Pass-through (legacy keys kept for compatibility) ──
         "gross_including_benefits":  gross_including_benefits,
         "n_pagues":                  n_pagues,
         "pagues_prorratejades":      pagues_prorratejades,
@@ -201,7 +215,7 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
         "contract_type":             contract_type,
         "other_deductions":          other_deductions,
         "fam":                       fam,
-        # legacy names used by viz_utils
+        # legacy names
         "cotitzacions_mensuals":               total_ss_mensual,
         "cotitzacions_anuals":                 total_ss_anual,
         "irpf_anual":                          cuota_irpf_anual,
@@ -214,15 +228,16 @@ def perform_calculation(gross, n_pagues, pagues_prorratejades, retribucio_en_esp
     }
 
 class NetToGrossRequest(Profile):
+    # Net d'una paga ordinària (el que arriba la majoria de mesos)
     net_per_paga: float
 
 
 def find_gross_for_net(profile: Profile, target_net: Decimal) -> Decimal:
-    """Brut anual (sense espècie) que dona `target_net` net per paga.
+    """Brut anual (sense espècie) que dona `target_net` net a la paga ordinària.
 
     El net creix amb el brut (fora de petits salts als límits d'exempció), així que
     una bisecció al cèntim troba el brut mínim que arriba al net demanat."""
-    net = lambda g: profile.calculate(g)["net_per_paga"]
+    net = lambda g: profile.calculate(g)["net_paga_ordinaria"]
     lo, hi = Decimal("0"), max(Decimal("1000"), target_net * profile.n_pagues * 2)
     while net(hi) < target_net:
         lo, hi = hi, hi * 2
@@ -237,23 +252,22 @@ def find_gross_for_net(profile: Profile, target_net: Decimal) -> Decimal:
     return hi
 
 
-def salary_response(data: Profile, gross) -> dict:
-    calc = data.calculate(gross)
+def salary_curve(data: Profile, gross) -> list:
+    """Punts [brut, net, SS, IRPF, marginal %] per dibuixar la corba al frontend."""
+    top = max(Decimal("40000"), Decimal(str(gross)) * Decimal("2"))
+    step = (top - Decimal("6000")) / 47
+    out = []
+    for i in range(48):
+        g = (Decimal("6000") + step * i).quantize(Decimal("1"))
+        c = data.calculate(g)
+        out.append([float(g), float(round_euro(g - c["total_ss_anual"] - c["cuota_irpf_anual"])),
+                    float(round_euro(c["total_ss_anual"])), float(round_euro(c["cuota_irpf_anual"])),
+                    float(c["marginal_irpf_percent"])])
+    return out
 
-    # Step 2: Add the bar chart plot (plot_salary_blocks)
-    figs = []
-    # Pie chart
-    fig1 = viz_utils.plot_net_pay_and_taxes(
-        calc["gross_including_benefits"], calc["net_per_paga"], calc["n_pagues"], calc["cotitzacions_anuals"], calc["irpf_anual"],
-        calc["ss_contingencies_comunes_monthly"] * Decimal(calc["n_pagues"]), calc["t_des_monthly"] * Decimal(calc["n_pagues"]),
-        calc["ss_training_monthly"] * Decimal(calc["n_pagues"]), calc["ss_mei_monthly"] * Decimal(calc["n_pagues"]), return_fig=True)
-    figs.append(fig_to_base64(fig1))
-    # Bar chart
-    fig2 = viz_utils.plot_salary_blocks(
-        # x = brut incloent espècie, així que no se li torna a sumar l'espècie
-        calc["gross_including_benefits"], calc["n_pagues"], calc["pagues_prorratejades"], Decimal("0"), calc["grup_cotitzacio"],
-        calc["contract_type"], calc["fam"], data.region, calc["other_deductions"], perform_calculation, return_fig=True)
-    figs.append(fig_to_base64(fig2))
+
+def salary_response(data: Profile, gross, curve: bool = True) -> dict:
+    calc = data.calculate(gross)
 
     return {
         # ── SS breakdown ────────────────────────────────────────────────────
@@ -282,19 +296,22 @@ def salary_response(data: Profile, gross) -> dict:
         "irpf_per_paga":              float(round_euro(calc["irpf_per_paga"])),
         "sou_net_per_paga":           float(round_euro(calc["net_per_paga"])),
         "sou_net_mensual_equivalent": float(round_euro(calc["net_monthly_equivalent"])),
+        "net_paga_ordinaria":         float(round_euro(calc["net_paga_ordinaria"])),
+        "net_paga_extra":             None if calc["net_paga_extra"] is None else float(round_euro(calc["net_paga_extra"])),
+        "n_pagues":                   calc["n_pagues"],
         # legacy aliases kept for backward compatibility
         "irpf_anual":         float(round_euro(calc["cuota_irpf_anual"])),
         "cotitzacions_anuals": float(round_euro(calc["total_ss_anual"])),
         # ── Pas a pas (algorisme oficial) ───────────────────────────────────
         "walkthrough": walkthrough(calc),
-        # ── Charts ──────────────────────────────────────────────────────────
-        "plots": figs,
+        # ── Corba per al gràfic (brut → net) ────────────────────────────────
+        "curve": salary_curve(data, gross) if curve else None,
     }
 
 
 @app.post("/api/calculate")
 async def calculate_salary(data: SalaryRequest):
-    return salary_response(data, data.gross)
+    return salary_response(data, data.gross, curve=data.with_curve)
 
 
 @app.post("/api/net-to-gross")
@@ -313,16 +330,12 @@ async def calculate_increment(data: IncrementRequest):
     increment_annual_ss   = (new["cotitzacions_anuals"] - prev["cotitzacions_anuals"])
     increment_annual_irpf = (new["cuota_irpf_anual"]   - prev["cuota_irpf_anual"])
     increment_annual_brut = (new["gross_including_benefits"] - prev["gross_including_benefits"])
-    # Pie chart for the difference
-    fig = viz_utils.plot_increment_difference_pie(prev, new, return_fig=True)
-    pie_base64 = fig_to_base64(fig)
     return {
         "increment_annual_net":  float(round_euro(increment_annual_net)),
         "increment_monthly_net": float(round_euro(increment_monthly_net)),
         "increment_annual_brut": float(round_euro(increment_annual_brut)),
         "increment_annual_ss":   float(round_euro(increment_annual_ss)),
         "increment_annual_irpf": float(round_euro(increment_annual_irpf)),
-        "increment_pie": pie_base64,
         # ── Resultat complet de cada sou (mateixes xifres que la calculadora) ──
         "previous": {"tipo_retencio": float(prev["tipo_retencio"]), "irpf_anual": float(round_euro(prev["cuota_irpf_anual"])),
                      "sou_net_per_paga": float(round_euro(prev["net_per_paga"])), "walkthrough": walkthrough(prev)},
