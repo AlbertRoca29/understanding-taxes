@@ -8,124 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-        @media (min-width: 768px) and (orientation: landscape),
-               (min-width: 1024px) {
-            .form-panel { flex: 0 0 440px; }
-            .result-panel {
-                max-height: calc(100vh - 80px);
-                overflow-y: auto;
-            }
-        }
-
-        /* ---- Toggle switch ---- */
-        .switch {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            font-size: 0.88em;
-            font-weight: 500;
-        }
-        .switch input[type="checkbox"] { display: none; }
-        .slider {
-            width: 38px;
-            height: 22px;
-            background: #ccc;
-            border-radius: 12px;
-            position: relative;
-            transition: background 0.2s;
-            flex-shrink: 0;
-        }
-        .slider::before {
-            content: '';
-            position: absolute;
-            left: 3px;
-            top: 3px;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
-            transition: transform 0.2s;
-        }
-        .switch input[type="checkbox"]:checked + .slider { background: var(--primary); }
-        .switch input[type="checkbox"]:checked + .slider::before { transform: translateX(16px); }
-
-        /* ---- Accordion ---- */
-        details {
-            border: 1.5px solid var(--input-border);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        summary {
-            font-weight: 600;
-            font-size: 0.9em;
-            color: var(--primary);
-            padding: 11px 14px;
-            cursor: pointer;
-            outline: none;
-            list-style: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            user-select: none;
-            letter-spacing: 0.01em;
-        }
-        summary::-webkit-details-marker { display: none; }
-        summary::before {
-            content: '▶';
-            font-size: 0.65em;
-            transition: transform 0.2s;
-            opacity: 0.7;
-        }
-        details[open] > summary::before { transform: rotate(90deg); }
-        .group-content {
-            padding: 8px 14px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            border-top: 1px solid var(--input-border);
-            background: #fafafa;
-        }
-
-        /* ---- Extra buttons ---- */
-        .add-btn {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 7px;
-            padding: 8px 16px;
-            font-size: 0.88em;
-            font-family: inherit;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .add-btn:hover { background: var(--primary-dark); }
-
-        .remove-btn {
-            background: #dc3545;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 5px 10px;
-            font-size: 0.85em;
-            cursor: pointer;
-            font-family: inherit;
-            font-weight: 500;
-        }
-        .remove-btn:hover { background: #b02a37; }
-
-        /* ---- Result / plots ---- */
-        #result { font-size: 0.95em; line-height: 1.7; }
-        #plots { display: flex; flex-direction: column; gap: 20px; margin-top: 20px; }
-        #plots img {
-            max-width: 100%;
-            border-radius: 12px;
-            border: 1px solid #ebebeb;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        }
-    </style>
 </head>
 <body>
     <nav class="navbar" id="navbar"></nav>
@@ -138,46 +20,38 @@
                 <h1>Calculadora de sou net</h1>
                 <p class="page-subtitle">Del salari brut al sou que arriba al teu compte.</p>
                 <form id="irpfForm">
-                    <!-- <h3 class="section-label">Dades del contracte</h3> -->
                     <div class="form-row">
-                        <label for="gross">Sou brut anual (€) <span style="color:var(--primary)">*</span></label>
-                        <input type="number" id="gross" name="gross" required step="any" placeholder="Ex: 30000">
+                        <label for="gross">Sou brut anual <span class="req">*</span></label>
+                        <div class="input-affix">
+                            <input type="text" inputmode="decimal" data-money autocomplete="off" id="gross" name="gross" required placeholder="Ex: 30.000">
+                        </div>
                     </div>
 
                     <div class="form-row">
                         <label>Regió</label>
                         <div class="pill-group" id="regionPills">
-                            <div class="pill selected" data-value="Catalunya">Catalunya</div>
-                            <div class="pill" data-value="Mitjana espanyola">Mitjana espanyola</div>
+                            <button type="button" aria-pressed="true" class="pill selected" data-value="Catalunya">Catalunya</button>
+                            <button type="button" aria-pressed="false" class="pill" data-value="Mitjana espanyola">Mitjana espanyola</button>
                         </div>
                         <input type="hidden" id="region" name="region" value="Catalunya">
                     </div>
 
                     <div class="form-row">
-                        <label for="n_pagues">Nombre de pagues <span style="color:var(--primary)">*</span></label>
-                        <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" value="14" placeholder="Ex: 14">
+                        <label for="n_pagues">Nombre de pagues <span class="req">*</span></label>
+                        <input type="number" id="n_pagues" name="n_pagues" required min="1" max="15" step="1" value="14" placeholder="Ex: 14">
                     </div>
 
                     <div class="form-row">
-                        <label for="grup_cotitzacio">Grup de cotització SS <span style="color:var(--primary)">*</span></label>
-                        <select id="grup_cotitzacio" name="grup_cotitzacio" required>
-                            <option value="Grup 1 – Enginyers/Llicenciats/Alta direcció" selected>Grup 1 – Enginyers, Llicenciats, Alta direcció</option>
-                            <option value="Grup 2 – Enginyers tècnics/Tècnics titulats">Grup 2 – Enginyers tècnics, Tècnics titulats</option>
-                            <option value="Grup 3 – Caps administratius i de taller">Grup 3 – Caps administratius i de taller</option>
-                            <option value="Grup 4 – Ajudants no titulats">Grup 4 – Ajudants no titulats</option>
-                            <option value="Grup 5 – Oficials administratius">Grup 5 – Oficials administratius</option>
-                            <option value="Grup 6 – Subalterns">Grup 6 – Subalterns</option>
-                            <option value="Grup 7 – Auxiliars administratius">Grup 7 – Auxiliars administratius</option>
-                            <option value="Grups 8-11 – Oficials, especialistes i peons">Grups 8-11 – Oficials, especialistes i peons</option>
-                        </select>
+                        <label for="grup_cotitzacio">Grup de cotització SS <span class="req">*</span></label>
+                        <select id="grup_cotitzacio" name="grup_cotitzacio" required></select>
                     </div>
 
                     <div class="form-row">
                         <label>Edat</label>
                         <div class="pill-group" id="agePills">
-                            <div class="pill selected" data-value="30">&lt; 65</div>
-                            <div class="pill" data-value="65">65+</div>
-                            <div class="pill" data-value="75">75+</div>
+                            <button type="button" aria-pressed="true" class="pill selected" data-value="30">&lt; 65</button>
+                            <button type="button" aria-pressed="false" class="pill" data-value="65">65+</button>
+                            <button type="button" aria-pressed="false" class="pill" data-value="75">75+</button>
                         </div>
                         <input type="hidden" id="age" name="age" value="30">
                     </div>
@@ -185,8 +59,8 @@
                     <div class="form-row">
                         <label>Tipus de contracte</label>
                         <div class="pill-group" id="contractTypePills">
-                            <div class="pill selected" data-value="indefinite">Indefinit</div>
-                            <div class="pill" data-value="temporary">Temporal</div>
+                            <button type="button" aria-pressed="true" class="pill selected" data-value="indefinite">Indefinit</button>
+                            <button type="button" aria-pressed="false" class="pill" data-value="temporary">Temporal</button>
                         </div>
                         <input type="hidden" id="contract_type" name="contract_type" value="indefinite">
                     </div>
@@ -195,12 +69,16 @@
                         <summary>Retribució en espècie i deduccions</summary>
                         <div class="group-content">
                             <div class="form-row">
-                                <label for="retribucio_en_especie_ann">Retribució en espècie anual (€)</label>
-                                <input type="number" id="retribucio_en_especie_ann" name="retribucio_en_especie_ann" value="0" step="any" placeholder="Ex: 0">
+                                <label for="retribucio_en_especie_ann">Retribució en espècie anual</label>
+                                <div class="input-affix">
+                                    <input type="text" inputmode="decimal" data-money autocomplete="off" id="retribucio_en_especie_ann" name="retribucio_en_especie_ann" value="0" placeholder="Ex: 0">
+                                </div>
                             </div>
                             <div class="form-row">
-                                <label for="other_deductions">Altres deduccions (€)</label>
-                                <input type="number" id="other_deductions" name="other_deductions" value="0" step="any" placeholder="Ex: 0">
+                                <label for="other_deductions">Altres deduccions</label>
+                                <div class="input-affix">
+                                    <input type="text" inputmode="decimal" data-money autocomplete="off" id="other_deductions" name="other_deductions" value="0" placeholder="Ex: 0">
+                                </div>
                             </div>
                         </div>
                     </details>
@@ -216,17 +94,17 @@
                             <div id="selfHelpWrap"></div>
 
                             <div>
-                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Fills</label>
-                                <div class="field-hint" style="margin-bottom:8px">Els fills de 25 anys o més només compten si tenen discapacitat.</div>
-                                <div id="childrenList" style="display:flex;flex-direction:column;gap:10px"></div>
-                                <button type="button" class="add-btn" onclick="addChild()" style="margin-top:10px">+ Afegir fill</button>
+                                <div class="group-title">Fills</div>
+                                <div class="field-hint">Els fills de 25 anys o més només compten si tenen discapacitat.</div>
+                                <div id="childrenList" class="person-list"></div>
+                                <button type="button" class="add-btn" onclick="addChild()">+ Afegir fill</button>
                             </div>
 
                             <div>
-                                <label style="font-weight:600;margin-bottom:6px;display:block;font-size:0.9em">Ascendents a càrrec</label>
-                                <div class="field-hint" style="margin-bottom:8px">Un pare/mare/avi compta si té 65 anys o més o té discapacitat.</div>
-                                <div id="ascendantsList" style="display:flex;flex-direction:column;gap:10px"></div>
-                                <button type="button" class="add-btn" onclick="addAscendant()" style="margin-top:10px">+ Afegir ascendent</button>
+                                <div class="group-title">Ascendents a càrrec</div>
+                                <div class="field-hint">Un pare/mare/avi compta si té 65 anys o més o té discapacitat.</div>
+                                <div id="ascendantsList" class="person-list"></div>
+                                <button type="button" class="add-btn" onclick="addAscendant()">+ Afegir ascendent</button>
                             </div>
                         </div>
                     </details>
@@ -240,7 +118,7 @@
                 <div class="result-placeholder" id="resultPlaceholder">
                     Omple el formulari i prem <strong>Calcular</strong> per veure els resultats aquí.
                 </div>
-                <div id="result"></div>
+                <div id="result" aria-live="polite"></div>
                 <div id="plots"></div>
             </div>
 
@@ -251,16 +129,8 @@
 
     <script src="shared.js"></script>
     <script>
-    // Pills
-    function bindPills(groupId, hiddenId) {
-        document.querySelectorAll('#' + groupId + ' .pill').forEach(pill => {
-            pill.onclick = function() {
-                document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
-                pill.classList.add('selected');
-                document.getElementById(hiddenId).value = pill.getAttribute('data-value');
-            };
-        });
-    }
+    fillGrupSelect('grup_cotitzacio');
+    initMoneyInputs();
     bindPills('regionPills', 'region');
     bindPills('agePills', 'age');
     bindPills('contractTypePills', 'contract_type');
@@ -273,7 +143,7 @@
 
     function pillGroup(opts, current, makeCall) {
         return '<div class="pill-group">' + opts.map(([label, val]) =>
-            `<div class="pill${current === val ? ' selected' : ''}" onclick="${makeCall(val)}">${label}</div>`
+            `<button type="button" aria-pressed="${current === val}" class="pill${current === val ? ' selected' : ''}" onclick="${makeCall(val)}">${label}</button>`
         ).join('') + '</div>';
     }
     // L'ajuda només es demana al tram 33–64%; a 65%+ ja s'aplica automàticament.
@@ -284,7 +154,7 @@
         const help = m.disability === 50 ? helpToggle(m.help, `set_${kind}(${i},'help',this.checked)`) : '';
         return `<div class="person-card">
             <div class="person-card-head"><span>${label} ${i + 1}</span>
-                <button type="button" class="remove-btn" onclick="remove_${kind}(${i})">&times;</button></div>
+                <button type="button" class="remove-btn" aria-label="Eliminar ${label.toLowerCase()} ${i + 1}" onclick="remove_${kind}(${i})">&times;</button></div>
             <div class="mini-row"><span class="mini-label">Edat</span>${pillGroup(ageOpts, m.age, v => `set_${kind}(${i},'age',${v})`)}</div>
             <div class="mini-row"><span class="mini-label">Discapacitat</span>${pillGroup(DISAB_OPTS, m.disability, v => `set_${kind}(${i},'disability',${v})`)}</div>
             ${help}
@@ -330,18 +200,52 @@
     window.addAscendant = function() { ascendants.push({ age: 70, disability: 0, help: false }); renderAscendants(); };
     renderAscendants();
 
+    function renderResult(r, npagues) {
+        const ssShare = n => fmtPct(r.base_ss_mensual ? n / r.base_ss_mensual * 100 : NaN);
+        const neg = n => '−' + fmtEur(n);
+        return resultHero(`Sou net per paga (${npagues})`, fmtEur(r.sou_net_per_paga),
+                `Equivalent mensual (÷12): ${fmtEur(r.sou_net_mensual_equivalent)}`)
+            + resultSection('Cotització SS', [
+                ['Base mensual', `<b>${fmtEur(r.base_ss_mensual)}</b>`],
+                [`Contingències (${ssShare(r.ss_contingencies_comunes_mensual)})`, neg(r.ss_contingencies_comunes_mensual), 'sub'],
+                [`Atur (${ssShare(r.ss_atur_mensual)})`, neg(r.ss_atur_mensual), 'sub'],
+                [`Formació (${ssShare(r.ss_formacio_mensual)})`, neg(r.ss_formacio_mensual), 'sub'],
+                [`MEI (${ssShare(r.ss_mei_mensual)})`, neg(r.ss_mei_mensual), 'sub'],
+                ['Total SS', `${neg(r.total_ss_mensual)}/mes<span class="amount-secondary">${neg(r.total_ss_anual)}/any</span>`, 'total'],
+            ])
+            + resultSection('IRPF', [
+                ['Brut anual', fmtEur(r.rendiment_brut_treball)],
+                ['− Cotitzacions SS', neg(r.total_ss_anual), 'minus'],
+                ['− Gastos deduïbles', neg(r.gastos_deducibles), 'minus'],
+                ['− Red. rendiments treball', neg(r.reduccio_rendiments_treball), 'minus'],
+                ['Base imposable', fmtEur(r.base_imponible), 'total'],
+                ['mínim p/f', fmtEur(r.minim_personal_familiar), 'sub'],
+                ['Quota IRPF', `<b>${fmtEur(r.cuota_irpf_anual)}</b>`],
+                ['Retenció', `<b>${fmtPct(r.tipo_retencio)}</b>`],
+                ['Marginal', `<b>${fmtPct(r.marginal_irpf_percent)}</b>`],
+            ])
+            + resultSection(`Per paga (${npagues})`, [
+                ['Brut', fmtEur(r.gross_per_paga)],
+                ['− SS', neg(r.ss_per_paga), 'minus'],
+                ['− IRPF', neg(r.irpf_per_paga), 'minus'],
+                ['Net', fmtEur(r.sou_net_per_paga), 'total'],
+            ]);
+    }
+
     // Form submit
+    let requestSeq = 0;
     document.getElementById('irpfForm').addEventListener('submit', async function(e) {
         e.preventDefault();
+        const seq = ++requestSeq;
         const data = {
-            gross: parseFloat(document.getElementById('gross').value),
+            gross: readMoney('gross'),
             region: document.getElementById('region').value,
             n_pagues: parseInt(document.getElementById('n_pagues').value),
             pagues_prorratejades: true,
-            retribucio_en_especie_ann: parseFloat(document.getElementById('retribucio_en_especie_ann').value) || 0,
+            retribucio_en_especie_ann: readMoney('retribucio_en_especie_ann') || 0,
             grup_cotitzacio: document.getElementById('grup_cotitzacio').value,
             contract_type: document.getElementById('contract_type').value,
-            other_deductions: parseFloat(document.getElementById('other_deductions').value) || 0,
+            other_deductions: readMoney('other_deductions') || 0,
             age: parseInt(document.getElementById('age').value),
             disability_percent_self: selfDisability,
             disability_self_help: selfHelp,
@@ -349,66 +253,29 @@
             ascendants: ascendants.map(a => ({ age: a.age, disability: a.disability, needs_help: a.disability === 50 ? a.help : false }))
         };
 
-        const placeholder = document.getElementById('resultPlaceholder');
         const resultEl = document.getElementById('result');
         const plotsEl = document.getElementById('plots');
-        placeholder.style.display = 'none';
-        resultEl.innerHTML = '<div style="color:#888;padding:20px 0;text-align:center">Calculant…</div>';
+        document.getElementById('resultPlaceholder').style.display = 'none';
+        showLoading(resultEl);
         plotsEl.innerHTML = '';
+        const restoreButton = setSubmitting(this);
 
         try {
-            const response = await fetch('https://understanding-taxes-111926362104.europe-west1.run.app/api/calculate', {
-            // const response = await fetch('http://localhost:8000/api/calculate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (!response.ok) throw new Error('API error');
-            const result = await response.json();
-            const fmt = (n) => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-            const pct = (n) => n.toFixed(2) + '%';
-            const npagues = parseInt(document.getElementById('n_pagues').value);
-            resultEl.innerHTML = `
-<div style="font-size:0.93em;text-align:left;line-height:1.75;font-family:monospace;background:#f8f8f8;border-radius:12px;padding:16px 18px;border:1px solid #eee">
-<div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">COTITZACIÓ SS</div>
-Base mensual: <b>${fmt(result.base_ss_mensual)}</b>
-<div style="margin-left:12px;color:#555;font-size:0.91em">
-  · Contingències (${(result.ss_contingencies_comunes_mensual/result.base_ss_mensual*100).toFixed(2)}%): −${fmt(result.ss_contingencies_comunes_mensual)}<br>
-  · Atur (${(result.ss_atur_mensual/result.base_ss_mensual*100).toFixed(2)}%): −${fmt(result.ss_atur_mensual)}<br>
-  · Formació (${(result.ss_formacio_mensual/result.base_ss_mensual*100).toFixed(2)}%): −${fmt(result.ss_formacio_mensual)}<br>
-  · MEI (${(result.ss_mei_mensual/result.base_ss_mensual*100).toFixed(2)}%): −${fmt(result.ss_mei_mensual)}
-</div>
-Total SS: <b>−${fmt(result.total_ss_mensual)}/mes</b> · <b>−${fmt(result.total_ss_anual)}/any</b>
+            const result = await postApi('/api/calculate', data);
+            if (seq !== requestSeq) return; // ja hi ha una petició més nova
+            resultEl.innerHTML = renderResult(result, data.n_pagues);
 
-<div style="border-top:1px solid #e0e4ea;margin:10px 0"></div>
-<div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">IRPF</div>
-Brut anual: ${fmt(result.rendiment_brut_treball)}<br>
-<span style="color:#888">− Cotitzacions SS:</span> −${fmt(result.total_ss_anual)}<br>
-<span style="color:#888">− Gastos deduïbles:</span> −${fmt(result.gastos_deducibles)}<br>
-<span style="color:#888">− Red. rendiments treball:</span> −${fmt(result.reduccio_rendiments_treball)}<br>
-<b>Base imposable: ${fmt(result.base_imponible)}</b> <span style="color:#888;font-size:0.91em">(mínim p/f: ${fmt(result.minim_personal_familiar)})</span><br>
-<b>Quota IRPF: ${fmt(result.cuota_irpf_anual)}</b> &nbsp;·&nbsp; Retenció: <b>${pct(result.tipo_retencio)}</b> &nbsp;·&nbsp; Marginal: <b>${pct(result.marginal_irpf_percent)}</b>
-
-<div style="border-top:1px solid #e0e4ea;margin:10px 0"></div>
-<div style="font-weight:700;color:#e2231a;margin-bottom:4px;font-family:Inter,sans-serif;font-size:0.95em;letter-spacing:0.04em">PER PAGA (${npagues})</div>
-${fmt(result.gross_per_paga)} − <span style="color:#888">SS ${fmt(result.ss_per_paga)}</span> − <span style="color:#888">IRPF ${fmt(result.irpf_per_paga)}</span> = <b style="font-size:1.08em">${fmt(result.sou_net_per_paga)}</b><br>
-<span style="color:#888;font-size:0.88em">Equivalent mensual (÷12): ${fmt(result.sou_net_mensual_equivalent)}</span>
-</div>`;
-
-            if (result.plots && Array.isArray(result.plots)) {
-                result.plots.forEach((img, i) => {
-                    const image = document.createElement('img');
-                    image.src = 'data:image/png;base64,' + img;
-                    image.alt = 'Gràfic ' + (i+1);
-                    plotsEl.appendChild(image);
-                });
+            if (Array.isArray(result.plots)) {
+                plotsEl.innerHTML = result.plots
+                    .map((img, i) => chartCard(img, 'Gràfic ' + (i + 1), i === 0 ? 'pie' : 'lines'))
+                    .join('');
             }
-
-            if (window.innerWidth < 1024) {
-                document.querySelector('.result-panel').scrollIntoView({behavior:'smooth', block:'start'});
-            }
+            scrollToResultsIfStacked();
         } catch (err) {
-            resultEl.innerHTML = '<div style="color:#dc3545;padding:12px 0">Error: ' + err.message + '</div>';
+            if (seq !== requestSeq) return;
+            showError(resultEl, err.message);
+        } finally {
+            restoreButton();
         }
     });
     </script>

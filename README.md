@@ -21,4 +21,4 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-**Frontend** — obre `frontend/index.html` directament al navegador o amb qualsevol servidor estàtic. Per usar el backend local, canvia `API_BASE` als fitxers HTML a `http://localhost:8000`.
+**Frontend** — obre `frontend/index.html` directament al navegador o amb qualsevol servidor estàtic. Per usar el backend local, canvia `API_BASE` a `frontend/shared.js` per `http://localhost:8000`.
