@@ -21,4 +21,4 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-**Frontend** — obre `frontend/index.html` directament al navegador o amb qualsevol servidor estàtic. Per usar el backend local, canvia `API_BASE` a `frontend/shared.js` per `http://localhost:8000`.
+**Frontend** — serveix `frontend/` amb qualsevol servidor estàtic (p. ex. `python3 -m http.server 5500 -d frontend`). Des de `localhost` fa servir automàticament el backend local (`http://localhost:8000`); des de qualsevol altre domini, el de producció.
