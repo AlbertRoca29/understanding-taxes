@@ -84,7 +84,7 @@
 
     function renderResult(r, nPagues) {
         return resultHero(`Increment net per paga (${nPagues})`, fmtEur(r.increment_annual_net / nPagues),
-                `Equivalent mensual (÷12): ${fmtEur(r.increment_monthly_net)}`)
+                nPagues !== 12 ? `Equivalent mensual (÷12): ${fmtEur(r.increment_monthly_net)}` : '')
             + resultSection("Resum de l'increment", [
                 ['Increment brut anual', '+' + fmtEur(r.increment_annual_brut)],
                 ['− SS addicional', '−' + fmtEur(r.increment_annual_ss), 'minus'],

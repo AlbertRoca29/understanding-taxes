@@ -206,19 +206,28 @@ select:focus {
 /* Camp d'import amb sufix € */
 .input-affix { position: relative; }
 .input-affix input {
-    padding-right: 34px;
+    padding-right: 48px;
     font-variant-numeric: tabular-nums;
 }
-.input-affix::after {
-    content: '€';
+.money-unit {
     position: absolute;
-    right: 13px;
+    right: 6px;
     top: 50%;
     transform: translateY(-50%);
+    min-width: 34px;
+    padding: 3px 7px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
     color: var(--text-muted);
+    font: inherit;
     font-weight: 500;
-    pointer-events: none;
+    line-height: normal;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
+.money-unit:hover { border-color: var(--input-border); color: var(--text); }
+.money-unit[aria-pressed="true"] { color: var(--text); border-color: var(--input-border); }
 
 /* ---- Pills ---- */
 .pill-group {

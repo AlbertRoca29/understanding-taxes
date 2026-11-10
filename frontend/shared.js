@@ -123,29 +123,79 @@ function fillGrupSelect(id) {
 
 // ── Camps d'import (€) amb separador de milers mentre s'escriu ──────────────
 // Format català: punt per als milers, coma per als decimals.
-function formatMoneyText(raw) {
+// Els imports es poden escriure en euros o en milers d'euros (k€): el botó
+// d'unitat de cada camp canvia tots els camps de la pàgina alhora.
+let moneyInThousands = false;
+try { moneyInThousands = localStorage.getItem('moneyUnit') === 'k'; } catch {}
+const moneyDecimals = () => moneyInThousands ? 3 : 2;
+
+function formatMoneyText(raw, maxDec = moneyDecimals()) {
     const s = raw.replace(/[^\d,]/g, '');
     const comma = s.indexOf(',');
     let int = comma >= 0 ? s.slice(0, comma) : s;
-    const dec = comma >= 0 ? s.slice(comma + 1).replace(/,/g, '').slice(0, 2) : null;
+    const dec = comma >= 0 ? s.slice(comma + 1).replace(/,/g, '').slice(0, maxDec) : null;
     int = int.replace(/^0+(?=\d)/, '');
     const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     return dec !== null ? (grouped || '0') + ',' + dec : grouped;
 }
-// Text escrit/enganxat: l'últim separador seguit d'1–2 dígits és el decimal;
-// la resta de punts/comes es tracten com a milers ("1.500,50", "1500.5", "30.000").
+// Text escrit/enganxat: l'últim separador seguit d'1–2 dígits (1–3 en k€) és el
+// decimal; la resta de punts/comes es tracten com a milers ("1.500,50", "1500.5", "30.000").
 function normalizeMoneyChunk(t) {
     if (t === '.' || t === ',') return ',';
-    const m = t.match(/^(.*)[.,](\d{1,2})$/);
+    const m = t.match(new RegExp(`^(.*)[.,](\\d{1,${moneyDecimals()}})$`));
     if (m) return m[1].replace(/[.,]/g, '') + ',' + m[2];
     return t.replace(/[.,]/g, '');
 }
-function readMoney(id) {
-    const v = document.getElementById(id).value.replace(/\./g, '').replace(',', '.');
+function parseMoneyText(text) {
+    const v = text.replace(/\./g, '').replace(',', '.');
     return v === '' ? NaN : parseFloat(v);
+}
+function moneyToText(n) {
+    if (!Number.isFinite(n)) return '';
+    const fixed = n.toFixed(moneyDecimals()).replace(/\.?0+$/, '');
+    return formatMoneyText(fixed.replace('.', ','));
+}
+// Sempre en euros, sigui quina sigui la unitat del camp
+function readMoney(id) {
+    const n = parseMoneyText(document.getElementById(id).value);
+    return moneyInThousands ? n * 1000 : n;
+}
+function refreshMoneyUnitUi() {
+    document.querySelectorAll('input[data-money]').forEach(input => {
+        const ph = input.dataset.placeholderEur ??= input.placeholder;
+        const m = ph.match(/^(.*?)([\d.,]+)$/);
+        if (m && moneyInThousands) input.placeholder = m[1] + moneyToText(parseMoneyText(m[2]) / 1000);
+        else input.placeholder = ph;
+    });
+    document.querySelectorAll('.money-unit').forEach(btn => {
+        btn.textContent = moneyInThousands ? 'k€' : '€';
+        btn.setAttribute('aria-pressed', String(moneyInThousands));
+        btn.title = moneyInThousands ? "En milers d'euros. Clica per passar a euros" : "En euros. Clica per escriure en milers (k€)";
+    });
+}
+function setMoneyInThousands(k) {
+    if (k === moneyInThousands) return;
+    const values = [...document.querySelectorAll('input[data-money]')].map(i => [i, parseMoneyText(i.value)]);
+    moneyInThousands = k;
+    values.forEach(([input, n]) => { if (Number.isFinite(n)) input.value = moneyToText(k ? n / 1000 : n * 1000); });
+    try { localStorage.setItem('moneyUnit', k ? 'k' : 'eur'); } catch {}
+    refreshMoneyUnitUi();
 }
 function initMoneyInputs() {
     document.querySelectorAll('input[data-money]').forEach(input => {
+        const affix = input.closest('.input-affix');
+        if (affix) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'money-unit';
+            btn.setAttribute('aria-label', "Escriure l'import en milers d'euros");
+            btn.addEventListener('click', () => { setMoneyInThousands(!moneyInThousands); input.focus(); });
+            affix.appendChild(btn);
+        }
+        if (moneyInThousands) {
+            const n = parseMoneyText(input.value);
+            if (Number.isFinite(n)) input.value = moneyToText(n / 1000);
+        }
         input.value = formatMoneyText(input.value);
         input.addEventListener('paste', e => {
             e.preventDefault();
@@ -174,6 +224,7 @@ function initMoneyInputs() {
             input.setSelectionRange(pos, pos);
         });
     });
+    refreshMoneyUnitUi();
 }
 
 // Espera que les imatges (gràfics) estiguin decodificades: si no, la pàgina
