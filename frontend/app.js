@@ -37,7 +37,7 @@
     const RSTEPS = 1000;
     const toAmount = (m, t) => {
         const v = m.min + (m.max - m.min) * (t / RSTEPS) ** 2;
-        const step = S.mode === 'net' ? (v < 3000 ? 10 : 50) : (v < 40000 ? 250 : v < 80000 ? 500 : 1000);
+        const step = S.mode === 'net' ? (v < 3000 ? 10 : 50) : (v < 30000 ? 500 : 1000);
         return Math.round(v / step) * step;
     };
     const toPos = (m, v) => Math.sqrt(Math.min(1, Math.max(0, (v - m.min) / (m.max - m.min)))) * RSTEPS;
@@ -59,7 +59,7 @@
             <input type="range" id="amountRange" class="range" aria-labelledby="amountLabel" min="0" max="${RSTEPS}" step="1">
             <div class="field-hint" id="amountHint"></div>
         </div>
-        <div class="form-row">
+        <div class="form-row sec sec-pagues">
             <span class="field-label">${tr('Nombre de pagues', 'Número de pagas', 'Payments per year')}</span>
             <div class="pagues-row">
                 <div class="mode-switch" id="paguesSwitch" role="group">
@@ -201,11 +201,12 @@
         const aux = { ...body, with_curve: false };
         const esp = profile.retribucio_en_especie_ann;
         try {
-            const r = S.mode === 'gross'
-                ? await postApi('/api/calculate', { ...body, gross: amount })
-                : await postApi('/api/net-to-gross', { ...body, net_per_paga: amount });
-            const gross = S.mode === 'gross' ? amount : r.gross;
             const cmp = S.compare ? readMoney('compareGross') : NaN;
+            const curveTo = cmp > 0 ? cmp : null;
+            const r = S.mode === 'gross'
+                ? await postApi('/api/calculate', { ...body, gross: amount, curve_to: curveTo })
+                : await postApi('/api/net-to-gross', { ...body, net_per_paga: amount, curve_to: curveTo });
+            const gross = S.mode === 'gross' ? amount : r.gross;
             const lowKey = S.mode === 'gross' ? Profile.groupRange() : null;
             const variants = Profile.effects();
             const calc = b => postApi('/api/calculate', { ...aux, gross, ...b });
@@ -244,8 +245,8 @@
             + section(tr('On van els teus diners', 'A dónde va tu dinero', 'Where your money goes'), Charts.bar(s))
             + payslipBlock(r)
             + (r.curve ? section(tr('El teu sou dins la corba', 'Tu sueldo en la curva', 'Your salary on the curve'), '<div id="curveChart"></div>') : '')
-            + `<details class="all-figures"><summary>${tr('Totes les xifres', 'Todas las cifras', 'All the figures')}</summary><div class="all-figures-body">${salaryBreakdown(r, s)}</div></details>`;
-        if (r.curve) Charts.curve($('curveChart'), r.curve, [
+            + `<details class="all-figures"><summary>${tr('Totes les xifres', 'Todas las cifras', 'All the figures')}</summary><div class="all-figures-body">${ssBreakdown(r)}${salaryBreakdown(r, s)}</div></details>`;
+        if (r.curve) Charts.curve($('curveChart'), clipCurve(r.curve, Math.max(s.G, sc ? sc.G : 0)), [
             { g: s.G - esp, net: s.netAnnual, label: rc ? tr('actual', 'actual', 'current') : tr('tu', 'tú', 'you') },
             ...(sc ? [{ g: sc.G - esp, net: sc.netAnnual, label: tr('nou', 'nuevo', 'new') }] : []),
         ]);
@@ -255,6 +256,8 @@
         bindResult();
     }
 
+    // Només un marge raonable per sobre del sou (si el backend encara envia una corba més llarga)
+    const clipCurve = (pts, g) => { const top = Math.max(25000, g * 1.3, g + 6000); const out = pts.filter(p => p[0] <= top * 1.02); return out.length > 8 ? out : pts; };
     const section = (title, body, extra = '') => `<section class="res-block"${extra}><h2 class="res-title">${title}</h2>${body}</section>`;
 
     function hero(r, s) {
@@ -278,12 +281,14 @@
             any: [s.netAnnual, ''],
         };
         const [val, sub] = V[S.unit];
-        const slip = slipOf(r);
-        const slipVal = { paga: slip.ordinary, mes: slip.month, any: slip.netAnnual }[S.unit];
+        const pick = { paga: 'ordinary', mes: 'month', any: 'netAnnual' }[S.unit];
+        const slipVal = slipOf(r)[pick];
+        const slipLow = last.rLow ? slipOf(last.rLow)[pick] : slipVal;
+        const range = (lo, hi) => Math.round(lo) < Math.round(hi) ? `${fmtEur0(lo).replace(/\s?€/, '')} – ${fmtEur0(hi)}` : fmtEur0(hi);
         // Grup de cotització desconegut: mostrem el rang entre el grup més habitual i el grup 1
         const low = last.rLow ? { paga: 'ordinary', mes: 'month', any: 'netAnnual' }[S.unit] : null;
         const lowVal = low ? slicesOf(last.rLow)[low] : val;
-        const shown = Math.round(lowVal) < Math.round(val) ? `${fmtEur0(lowVal).replace(/\s?€/, '')} – ${fmtEur0(val)}` : fmtEur0(val);
+        const shown = range(lowVal, val);
         const groupNote = Math.round(lowVal) < Math.round(val) ? `<div class="result-hero-sub"><button type="button" class="link-btn" id="pickGroup">${tr('Tria el teu grup de cotització', 'Elige tu grupo de cotización', 'Pick your Social Security group')}</button></div>` : '';
         return `<div class="result-hero">
             <div class="hero-top">
@@ -297,11 +302,12 @@
             ${groupNote}
             ${s.especie ? `<div class="result-hero-sub">${tr(`I a més ${fmtEur0(s.especie)} l'any en espècie`, `Y además ${fmtEur0(s.especie)} al año en especie`, `Plus ${fmtEur0(s.especie)} a year in kind`)}</div>` : ''}
             </div>
-            <div class="result-hero-side">
-                <div class="result-hero-side-label">${tr('A la nòmina hi veuràs', 'En la nómina verás', 'Your payslip will show')}</div>
-                <div class="result-hero-side-value">${fmtEur0(slipVal)}</div>
             </div>
-            </div>
+            <button type="button" class="slip-guide" id="toSlip">
+                <span>${tr('A la nòmina hi veuràs', 'En la nómina verás', 'Your payslip will show')}</span>
+                <mark>${range(slipLow, slipVal)}</mark>
+                <span class="slip-guide-why">${tr("La retenció és una aproximació; la diferència te la torna (o te la cobra) la renda.", 'La retención es una aproximación; la diferencia te la devuelve (o te la cobra) la renta.', 'Withholding is an estimate; your tax return settles the difference.')}</span>
+            </button>
         </div>`;
     }
 
@@ -350,20 +356,21 @@
             <button type="button" data-slip="normal" aria-pressed="${!extra}">${tr('Mes normal', 'Mes normal', 'Regular month')}</button>
             <button type="button" data-slip="extra" aria-pressed="${!!extra}">${tr('Paga extra', 'Paga extra', 'Extra payment')}</button></div>` : '';
         return section(tr('La teva nòmina', 'Tu nómina', 'Your payslip'), `${tabs}
-            <div class="slip">
+            <div class="slip" id="slipBlock">
               <table>
                 <thead><tr><th colspan="3">${tr('Meritacions', 'Devengos', 'Earnings')}</th></tr></thead>
                 <tbody>
-                  ${earn.map(([l, v]) => `<tr><td>${l}</td><td></td><td class="n">${fmtEur(v)}</td></tr>`).join('')}
-                  <tr class="tot"><td>${tr('Total meritat', 'Total devengado', 'Total earnings')}</td><td></td><td class="n">${fmtEur(totEarn)}</td></tr>
+                  ${earn.map(([l, v]) => `<tr><td>${l}</td><td class="slip-pct"></td><td class="n">${fmtEur(v)}</td></tr>`).join('')}
+                  <tr class="tot"><td>${tr('Total meritat', 'Total devengado', 'Total earnings')}</td><td class="slip-pct"></td><td class="n">${fmtEur(totEarn)}</td></tr>
                 </tbody>
-                <thead><tr><th>${tr('Deduccions', 'Deducciones', 'Deductions')}</th><th class="n">%</th><th></th></tr></thead>
+                <thead><tr><th>${tr('Deduccions', 'Deducciones', 'Deductions')}</th><th class="n slip-pct">%</th><th></th></tr></thead>
                 <tbody>
-                  ${ded.map(([l, p, v]) => `<tr><td>${l}</td><td class="n">${p}</td><td class="n">−${fmtEur(v)}</td></tr>`).join('')}
-                  <tr class="tot"><td>${tr('Total a deduir', 'Total a deducir', 'Total deductions')}</td><td></td><td class="n">−${fmtEur(totDed)}</td></tr>
+                  ${ded.map(([l, p, v]) => `<tr><td>${l}${p ? `<small class="slip-rate">${p}</small>` : ''}</td><td class="n slip-pct">${p}</td><td class="n">−${fmtEur(v)}</td></tr>`).join('')}
+                  <tr class="tot"><td>${tr('Total a deduir', 'Total a deducir', 'Total deductions')}</td><td class="slip-pct"></td><td class="n">−${fmtEur(totDed)}</td></tr>
                 </tbody>
               </table>
-              <div class="liq"><span>${tr('Líquid a percebre', 'Líquido a percibir', 'Net pay')}</span><span>${fmtEur(liq)}</span></div>
+              <div class="liq"><span>${tr('Líquid a percebre', 'Líquido a percibir', 'Net pay')}</span><mark>${fmtEur(liq)}</mark></div>
+              <div class="slip-note">↑ ${tr('Aquesta és la xifra que arriba al compte', 'Esta es la cifra que llega a la cuenta', 'This is what reaches your account')}${last.rLow ? ` · ${tr('amb el grup de cotització més habitual', 'con el grupo de cotización más habitual', 'with the most common contribution group')}` : ''}</div>
             </div>`);
     }
 
@@ -371,6 +378,7 @@
         const res = $('result');
         res.querySelectorAll('[data-unit]').forEach(b => b.onclick = () => { S.unit = b.dataset.unit; render(); });
         res.querySelectorAll('[data-slip]').forEach(b => b.onclick = () => { S.payslip = b.dataset.slip; render(); });
+        const ts = $('toSlip'); if (ts) ts.onclick = () => { const el = $('slipBlock'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); };
         const pg = $('pickGroup'); if (pg) pg.onclick = () => { const row = $('grupRow'); row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1400); };
         updateDock();
     }

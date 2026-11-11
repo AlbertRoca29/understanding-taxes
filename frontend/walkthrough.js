@@ -7,7 +7,9 @@
 (function () {
     const eur = v => fmtEur(+v);
     const pct = v => fmtPct(+v);
-    const BCOL = ['#f3cfcc', '#e8a9a4', '#d9706a', '#c43434', '#a12a2a', '#80211f', '#611816', '#431010'];
+    // Trams: rampa del color principal, de suau a intens. El tram lliure va en gris ratllat.
+    const BMIX = [22, 38, 55, 72, 88, 100, 100, 100];
+    const bandBg = i => `color-mix(in srgb, var(--primary) ${BMIX[Math.min(i, BMIX.length - 1)]}%, ${i > 5 ? 'black' : 'var(--card)'} ${i > 5 ? (i - 5) * 15 : 100 - BMIX[Math.min(i, BMIX.length - 1)]}%)`;
     const before = () => tr('Abans', 'Antes', 'Before');
 
     function delta(a, b, fmt = eur) {
@@ -29,9 +31,8 @@
         return out;
     }
     function brkBar(trams, base, max, ghost) {
-        const col = t => t.i < 0 ? '#3aa76d' : BCOL[Math.min(t.i, BCOL.length - 1)];
         return `<div class="wt-brkwrap"><div class="wt-brk" style="width:${Math.max(3, base / max * 100)}%">${trams.map(t =>
-            `<div style="flex:${t.hi - t.lo};background:${col(t)}" title="${eur(t.hi - t.lo)} × ${(t.rate * 100).toFixed(1)} %">${(t.rate * 100).toFixed(1).replace('.0', '')} %</div>`).join('')}</div>
+            `<div class="${t.i < 0 ? 'wt-free' : t.i < 3 ? 'wt-light' : ''}" style="flex:${t.hi - t.lo};${t.i < 0 ? '' : `background:${bandBg(t.i)}`}" title="${eur(t.hi - t.lo)} × ${(t.rate * 100).toFixed(1)} %">${(t.rate * 100).toFixed(1).replace('.0', '')} %</div>`).join('')}</div>
             ${ghost != null ? `<div class="wt-ghost" style="left:${ghost / max * 100}%" title="${before()}: ${eur(ghost)}"></div>` : ''}</div>`;
     }
 
