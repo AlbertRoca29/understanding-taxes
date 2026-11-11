@@ -33,7 +33,9 @@
 
     function curve(el, pts, marks = []) {
         if (!Array.isArray(pts) || pts.length < 2) { el.innerHTML = ''; return; }
-        const W = 640, H = 250, L = 48, R = 14, T = 12, B = 28, H2 = 90, T2 = 10, B2 = 24;
+        // En pantalles estretes el gràfic es fa més alt, perquè no quedi aixafat
+        const k0 = el.clientWidth ? Math.max(1, 640 / el.clientWidth) : 1;
+        const W = 640, H = Math.round(250 * Math.max(1, k0 * 0.62)), L = Math.round(48 * Math.min(k0, 1.7)), R = 14, T = 12, B = 28 * Math.min(k0, 1.8), H2 = Math.round(90 * Math.max(1, k0 * 0.8)), T2 = 10 * Math.min(k0, 1.8), B2 = 24;
         const x0 = pts[0][0], x1 = pts[pts.length - 1][0];
         const yMax = niceMax(x1);
         const sx = g => L + (g - x0) / (x1 - x0) * (W - L - R);
@@ -75,6 +77,10 @@
         </div>`;
 
         const svg = el.querySelector('svg.chart'), hl = svg.querySelector('.hover-line'), read = el.querySelector('.chart-read');
+        // Al mòbil el SVG s'encongeix: mantenim els textos a una mida llegible
+        const fit = () => el.querySelectorAll('svg.chart').forEach(g => { const w = g.clientWidth; if (w) g.style.setProperty('--k', Math.max(1, Math.min(2.2, W / w * 0.95)).toFixed(2)); });
+        fit();
+        if (window.ResizeObserver) new ResizeObserver(fit).observe(el);
         const show = clientX => {
             const r = svg.getBoundingClientRect();
             const x = (clientX - r.left) / r.width * W;

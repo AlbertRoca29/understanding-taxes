@@ -86,7 +86,7 @@
         const bandsOf = (scale, key) => {
             const trams = zeroTrams(w.BASE, w.MINPERFA, scale);
             return `${brkBar(trams, w.BASE, maxB, p ? p.BASE : null)}
-            <div class="wt-kv">${trams.map(t => `<span>${eur(t.lo)} – ${eur(t.hi)} <span class="wt-rate">${t.i < 0 ? tr('lliure', 'libre', 'tax-free') : pct(t.rate * 100)}</span></span><span>${eur((t.hi - t.lo) * t.rate)}</span>`).join('')}</div>`;
+            <div class="wt-kv">${trams.map(t => `<span>${fmtEur0(t.lo).replace(/\s?€/, '')} – ${fmtEur0(t.hi)} <span class="wt-rate">${t.i < 0 ? tr('lliure', 'libre', 'tax-free') : pct(t.rate * 100)}</span></span><span>${eur((t.hi - t.lo) * t.rate)}</span>`).join('')}</div>`;
         };
         const bands = card(step(tr('Part estatal', 'Parte estatal', 'State part')), withDelta('Q_EST'),
                 tr("L'IRPF es paga en dues parts. La part que tributa es reparteix en trams: la part lliure d'impostos va al 0 % i cada tram següent paga un percentatge més alt.",
