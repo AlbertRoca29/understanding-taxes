@@ -954,3 +954,101 @@ h1 { color: var(--primary); }
 .result-hero .result-hero-side { border-color: rgba(255,255,255,.35); }
 .result-hero .result-hero-side-label { color: rgba(255,255,255,.85); }
 .result-hero .result-hero-side-value { color: #fff; font-size: 1.6em; }
+
+/* ==== "A la nòmina hi veuràs": nota-guia subratllada, porta a la nòmina ==== */
+.slip-guide { font: inherit; color: #fff; background: none; border: 0; border-top: 1.5px dashed rgba(255,255,255,.4); margin-top: 14px; padding: 12px 0 0;
+    width: 100%; text-align: left; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.slip-guide > span:first-child { font-size: .92em; color: rgba(255,255,255,.88); }
+.slip-guide mark { color: #fff; font-weight: 800; font-size: 1.35em; font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+    background: linear-gradient(transparent 58%, rgba(255,255,255,.3) 58%, rgba(255,255,255,.3) 92%, transparent 92%); padding: 0 3px; }
+.slip-guide mark::after { content: ' ↓'; font-size: .7em; font-weight: 600; opacity: .8; }
+.slip-guide .slip-guide-why { flex-basis: 100%; font-size: .78em; color: rgba(255,255,255,.75); line-height: 1.4; }
+.slip-guide:hover mark { background: linear-gradient(transparent 58%, rgba(255,255,255,.45) 58%, rgba(255,255,255,.45) 92%, transparent 92%); }
+.slip-guide:focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 4px; }
+.slip .liq mark { color: #fff; background: linear-gradient(transparent 55%, color-mix(in srgb, var(--primary) 85%, transparent) 55%); padding: 0 3px; }
+.slip-note { font-family: 'DM Sans', sans-serif; font-size: 1.05em; color: var(--primary-dark); text-align: right; font-weight: 600; }
+.slip.flash { animation: flash 1.4s ease-out; }
+.slip-rate { display: none; }
+
+/* Nòmina en mòbil: el % va sota el concepte i res no s'esprem */
+@media (max-width: 480px) {
+    .slip { padding: 12px 10px; font-size: .74em; }
+    .slip .slip-pct { display: none; }
+    .slip-rate { display: block; font-size: .88em; color: #777; }
+    .slip td:first-child { padding-right: 6px; }
+    .slip .liq { padding: 8px; font-size: 1.05em; }
+    .slip .liq span { white-space: nowrap; }
+}
+
+/* ==== Com es calcula l'IRPF: paleta sòbria ==== */
+.wt { --wt-neutral: #4a4545; --wt-track: color-mix(in srgb, var(--primary) 4%, #efeded); --wt-hatch: color-mix(in srgb, var(--primary) 6%, #dedad9); }
+.wt-card { background: var(--card); border: 1px solid var(--line); }
+.wt-track { background: var(--wt-track); }
+.wt-start { background: var(--wt-neutral); }
+.wt-neg { background: repeating-linear-gradient(135deg, var(--wt-hatch) 0 5px, transparent 5px 10px); box-shadow: inset 0 0 0 1px var(--wt-hatch); }
+.wt-tot { background: var(--primary); }
+.wt-min { background: color-mix(in srgb, var(--wt-neutral) 45%, var(--card)); }
+.wt-brk div.wt-free { background: repeating-linear-gradient(135deg, var(--wt-hatch) 0 5px, var(--wt-track) 5px 10px); color: var(--text-muted); }
+.wt-brk div.wt-light { color: var(--primary-dark); }
+.wt-n { color: var(--primary); }
+.wt-ghost { background: var(--text); }
+
+/* ==== Totes les xifres: què paga cada part de la SS ==== */
+.ss-list { display: flex; flex-direction: column; }
+.ss-item { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.ss-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: .92em; }
+.ss-l { font-weight: 600; }
+.ss-r { font-weight: 500; color: var(--text-muted); font-size: .88em; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.ss-v { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ss-v small { color: var(--text-muted); margin-left: 2px; }
+.ss-why { font-size: .82em; color: var(--text-muted); line-height: 1.45; margin-top: 2px; }
+.ss-tot { border-bottom: 0; }
+.ss-tot .ss-top { font-weight: 700; }
+.all-figures-body .result-section + .result-section { margin-top: 22px; }
+
+/* ==== Família: rajoles del mateix pes que "La teva situació" ==== */
+.fam-tile { padding: 0; }
+.fam-tile::after { content: none; }
+.fam-tile .ft-main { font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; width: 100%;
+    padding: 9px 30px 9px 12px; display: flex; flex-direction: column; gap: 1px; border-radius: inherit; }
+.fam-tile .ft-main:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ft-x { position: absolute; top: 3px; right: 3px; width: 26px; height: 26px; border-radius: 50%; font: inherit; font-size: 1.05em; line-height: 1;
+    color: var(--text-muted); background: transparent; border: 0; cursor: pointer; }
+.ft-x:hover { color: var(--primary); background: var(--primary-light); }
+.ct-s { font-size: .74em; color: var(--primary-dark); font-weight: 500; }
+.fam-add { border-style: dashed; background: transparent; }
+.fam-add::after { content: none; }
+.fam-add .ct-v { color: var(--primary); }
+.fam-add .ct-l { font-weight: 500; }
+.fam-add:hover { background: var(--primary-light); }
+
+/* ==== Formulari per passos: seccions numerades, títols grans ==== */
+.form-panel form { counter-reset: pas; gap: 0; }
+.form-panel .mode-switch[role="group"]:not(#paguesSwitch) { margin-bottom: 14px; }
+.form-panel .hero-input, .form-panel .sec:not([hidden]) { position: relative; padding: 18px 0 20px 44px; border-top: 1px solid var(--line); }
+.form-panel .compare-box { padding: 0 0 18px 44px; }
+.form-panel .hero-input::before, .form-panel .sec:not([hidden])::before {
+    counter-increment: pas; content: counter(pas); position: absolute; left: 0; top: 16px; width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 800; font-size: .95em; color: #fff; background: var(--primary); }
+.form-panel .hero-input label, .form-panel .sec .field-label { font-size: 1.12em; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+.form-panel .sec .field-label + .field-hint { margin-top: -2px; }
+.form-panel .case-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.form-panel .case-tile { background: var(--card); border: 1.5px solid var(--line); box-shadow: 0 1px 3px rgba(0,0,0,.05); padding: 12px 30px 12px 13px; min-height: 64px; }
+.form-panel .case-tile .ct-v { font-size: 1em; }
+.form-panel .case-tile.set { border-color: var(--primary); background: var(--primary-light); }
+.form-panel .fam-tile { padding: 0; }
+.form-panel .fam-tile .ft-main { padding: 12px 30px 12px 13px; min-height: 64px; }
+.form-panel .fam-add { background: transparent; box-shadow: none; border: 1.5px dashed var(--primary-border); justify-content: center; }
+.form-panel .fam-add:hover { border-color: var(--primary); }
+.form-panel .grup-opt { padding: 11px 13px; }
+
+/* Les bombolles del glossari no han de crear desplaçament horitzontal */
+html, body { overflow-x: clip; }
+
+/* ==== Logo: «sou ● net» (Bricolage Grotesque, punt gros) ==== */
+.navbar a.logo { display: inline-flex; align-items: center; font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif; font-weight: 500;
+    font-size: 1.45em; letter-spacing: -.04em; line-height: 1; color: #fff; padding: .45em 0; border-bottom: 0; }
+.logo b { font-weight: 800; }
+.logo-dot { width: .5em; height: .5em; border-radius: 50%; background: currentColor; margin: .08em .1em 0 .12em; transition: transform .2s; }
+.navbar a.logo:hover .logo-dot { transform: scale(1.18); }
+.navbar a.logo:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }

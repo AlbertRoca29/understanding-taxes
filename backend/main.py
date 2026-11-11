@@ -58,6 +58,7 @@ class Profile(BaseModel):
 class SalaryRequest(Profile):
     gross: float
     with_curve: bool = True  # els càlculs auxiliars del frontend no necessiten la corba
+    curve_to: Optional[float] = None  # sou més alt que ha de cabre a la corba (p. ex. el de comparació)
 
 class IncrementRequest(Profile):
     previous_gross: float
@@ -266,13 +267,16 @@ def find_gross_for_net(profile: Profile, target_net: Decimal) -> Decimal:
     return hi
 
 
-def salary_curve(data: Profile, gross) -> list:
-    """Punts [brut, net, SS, IRPF, marginal %] per dibuixar la corba al frontend."""
-    top = max(Decimal("40000"), Decimal(str(gross)) * Decimal("2"))
-    step = (top - Decimal("6000")) / 47
+def salary_curve(data: Profile, gross, upto=None) -> list:
+    """Punts [brut, net, SS, IRPF, marginal %] per dibuixar la corba al frontend.
+    Només un marge raonable al voltant del sou: amb 25k no cal veure el marginal dels 60k."""
+    hi = max(Decimal(str(gross)), Decimal(str(upto or 0)))
+    top = max(Decimal("25000"), hi * Decimal("1.3"), hi + Decimal("6000"))
+    bottom = Decimal("6000")
+    step = (top - bottom) / 47
     out = []
     for i in range(48):
-        g = (Decimal("6000") + step * i).quantize(Decimal("1"))
+        g = (bottom + step * i).quantize(Decimal("1"))
         c = data.calculate(g)
         out.append([float(g), float(round_euro(g - c["total_ss_anual"] - c["cuota_irpf_anual"])),
                     float(round_euro(c["total_ss_anual"])), float(round_euro(c["cuota_irpf_anual"])),
@@ -324,7 +328,7 @@ def salary_response(data: Profile, gross, curve: bool = True) -> dict:
         # ── Pas a pas (impost real) ─────────────────────────────────────────
         "walkthrough": walkthrough(calc),
         # ── Corba per al gràfic (brut → net) ────────────────────────────────
-        "curve": salary_curve(data, gross) if curve else None,
+        "curve": salary_curve(data, gross, getattr(data, "curve_to", None)) if curve else None,
     }
 
 

@@ -39,12 +39,12 @@
     }
 
     const html = () => `
-        <div class="form-row" id="grupRow">
+        <div class="form-row sec sec-grup" id="grupRow">
             <span class="field-label">${tr('Grup de cotització SS', 'Grupo de cotización SS', 'Social Security group')}</span>
             <div id="grupField"></div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row sec sec-case">
             <span class="field-label">${tr('La teva situació', 'Tu situación', 'Your situation')}</span>
             <div class="field-hint">${tr("Toca el que no encaixi amb tu per canviar-ho.", 'Toca lo que no encaje contigo para cambiarlo.', "Tap anything that doesn't match you to change it.")}</div>
             <div class="case-grid" id="caseChips"></div>
@@ -64,9 +64,10 @@
             </div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row sec sec-family">
             <span class="field-label">${tr('Família a càrrec', 'Familia a cargo', 'Dependants')}</span>
-            <div class="chip-row" id="familyChips"></div>
+            <div class="field-hint">${tr('Fills i pares que viuen amb tu. Fan baixar l\'IRPF.', 'Hijos y padres que viven contigo. Hacen bajar el IRPF.', 'Children and parents living with you. They lower your income tax.')}</div>
+            <div class="case-grid fam-grid" id="familyChips"></div>
             <div id="memberEditor"></div>
             <div class="family-effect" id="familyEffect" hidden></div>
         </div>`;
@@ -160,32 +161,33 @@
 
     // ── Família com a xips ──────────────────────────────────────────────────
     const MEMBERS = {
-        children:   { ageOpts: CHILD_AGE, label: () => tr('Fill', 'Hijo', 'Child'), add: () => tr('+ fill', '+ hijo', '+ child'), blank: () => ({ age: 10, disability: 0, help: false }) },
-        ascendants: { ageOpts: ASC_AGE,   label: () => tr('Pare/mare', 'Padre/madre', 'Parent'), add: () => tr('+ pare/mare', '+ padre/madre', '+ parent'), blank: () => ({ age: 70, disability: 0, help: false }) },
+        children:   { ageOpts: CHILD_AGE, label: () => tr('Fill', 'Hijo', 'Child'), add: () => tr('Afegeix un fill', 'Añade un hijo', 'Add a child'),
+                      addSub: () => tr('Menors de 25, o amb discapacitat', 'Menores de 25, o con discapacidad', 'Under 25, or with a disability'), blank: () => ({ age: 10, disability: 0, help: false }) },
+        ascendants: { ageOpts: ASC_AGE,   label: () => tr('Pare o mare', 'Padre o madre', 'Parent'), add: () => tr('Afegeix pare o mare', 'Añade padre o madre', 'Add a parent'),
+                      addSub: () => tr('65 o més, o amb discapacitat', '65 o más, o con discapacidad', '65 or older, or with a disability'), blank: () => ({ age: 70, disability: 0, help: false }) },
     };
-    function chipText(key, m) {
-        const { ageOpts, label } = MEMBERS[key];
-        const age = ageOpts().find(([, v]) => v === m.age)?.[0] ?? '';
-        const dis = m.disability ? ` · ${tr('disc.', 'disc.', 'disab.')} ${m.disability === 50 ? '33–64 %' : '65 %+'}` : '';
-        return `${label()} · ${age.toLowerCase()}${dis}`;
-    }
     function renderFamily() {
         const row = $('familyChips'); row.innerHTML = '';
         Object.keys(MEMBERS).forEach(key => state[key].forEach((m, i) => {
             const on = editing && editing[0] === key && editing[1] === i;
-            const chip = document.createElement('span');
-            chip.className = 'chip' + (on ? ' editing' : '');
-            chip.innerHTML = `<button type="button" class="chip-main" aria-expanded="${on}">${escapeHtml(chipText(key, m))}</button>`
-                + `<button type="button" class="chip-x" aria-label="${tr('Treure', 'Quitar', 'Remove')}">×</button>`;
-            chip.querySelector('.chip-main').onclick = () => { editing = on ? null : [key, i]; renderFamily(); };
-            chip.querySelector('.chip-x').onclick = () => {
+            const { ageOpts, label } = MEMBERS[key];
+            const age = ageOpts().find(([, v]) => v === m.age)?.[0] ?? '';
+            const dis = m.disability ? `${tr('Discapacitat', 'Discapacidad', 'Disability')} ${m.disability === 50 ? '33–64 %' : '65 %+'}` : '';
+            const n = state[key].length > 1 ? ` ${i + 1}` : '';
+            const tile = document.createElement('div');
+            tile.className = 'case-tile fam-tile set' + (on ? ' editing' : '');
+            tile.innerHTML = `<button type="button" class="ft-main" aria-expanded="${on}"><span class="ct-l">${escapeHtml(label() + n)}</span><span class="ct-v">${escapeHtml(age)}</span>${dis ? `<span class="ct-s">${escapeHtml(dis)}</span>` : ''}</button>`
+                + `<button type="button" class="ft-x" aria-label="${tr('Treure', 'Quitar', 'Remove')}">×</button>`;
+            tile.querySelector('.ft-main').onclick = () => { editing = on ? null : [key, i]; renderFamily(); };
+            tile.querySelector('.ft-x').onclick = () => {
                 state[key].splice(i, 1); editing = null; renderFamily(); changed();
             };
-            row.appendChild(chip);
+            row.appendChild(tile);
         }));
         Object.entries(MEMBERS).forEach(([key, def]) => {
             const b = document.createElement('button');
-            b.type = 'button'; b.className = 'chip chip-add'; b.textContent = def.add();
+            b.type = 'button'; b.className = 'case-tile fam-add';
+            b.innerHTML = `<span class="ct-v">+ ${escapeHtml(def.add())}</span><span class="ct-l">${escapeHtml(def.addSub())}</span>`;
             b.onclick = () => { state[key].push(def.blank()); editing = [key, state[key].length - 1]; renderFamily(); changed(); };
             row.appendChild(b);
         });

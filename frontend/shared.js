@@ -173,6 +173,41 @@ function payslipSlices(r, n, especie = 0, ratio = 1) {
     return salarySlices({ ...r, cuota_irpf_anual: r.irpf_nomina_anual }, n, especie, ratio);
 }
 
+// Què paga cada part de la Seguretat Social que et descompten
+function ssBreakdown(r) {
+    const tot = r.total_ss_mensual || 0;
+    if (!tot) return '';
+    const yr = v => v / tot * r.total_ss_anual;
+    const rate = v => fmtPct(r.base_ss_mensual ? v / r.base_ss_mensual * 100 : NaN);
+    const rows = [
+        [tr('Contingències comunes', 'Contingencias comunes', 'Common contingencies'), r.ss_contingencies_comunes_mensual,
+         tr('La part grossa. Paga les pensions (jubilació, viduïtat, incapacitat) i el sou de les baixes per malaltia o accident no laboral.',
+            'La parte gorda. Paga las pensiones (jubilación, viudedad, incapacidad) y el sueldo de las bajas por enfermedad o accidente no laboral.',
+            'The big one. Funds pensions (retirement, survivors, disability) and sick pay for illness or non-work accidents.')],
+        [tr('Atur', 'Desempleo', 'Unemployment'), r.ss_atur_mensual,
+         tr("La prestació d'atur si perds la feina. Amb contracte temporal es paga una mica més.",
+            'La prestación por desempleo si pierdes el trabajo. Con contrato temporal se paga algo más.',
+            'Unemployment benefit if you lose your job. Slightly higher on temporary contracts.')],
+        [tr('Formació professional', 'Formación profesional', 'Vocational training'), r.ss_formacio_mensual,
+         tr("Cursos de formació per a treballadors i per a gent a l'atur.", 'Cursos de formación para trabajadores y para personas en paro.', 'Training courses for workers and the unemployed.')],
+        [tr('MEI', 'MEI', 'MEI'), r.ss_mei_mensual,
+         tr("Mecanisme d'Equitat Intergeneracional: una guardiola per pagar les pensions quan es jubili la generació del baby boom. Puja una mica cada any fins al 2029.",
+            'Mecanismo de Equidad Intergeneracional: una hucha para pagar las pensiones cuando se jubile la generación del baby boom. Sube un poco cada año hasta 2029.',
+            'Intergenerational Equity Mechanism: a reserve fund for pensions as the baby-boom generation retires. It rises a little each year until 2029.')],
+    ];
+    return `<section class="result-section">
+        <div class="result-section-title">${tr('On va la teva Seguretat Social', 'A dónde va tu Seguridad Social', 'Where your Social Security goes')}</div>
+        <div class="ss-list">${rows.map(([l, m, why]) => `<div class="ss-item">
+            <div class="ss-top"><span class="ss-l">${l} <span class="ss-r">${rate(m)}</span></span><span class="ss-v">${fmtEur(yr(m))}<small>${tr('/any', '/año', '/yr')}</small></span></div>
+            <div class="ss-why">${why}</div></div>`).join('')}
+            <div class="ss-item ss-tot"><div class="ss-top"><span class="ss-l">${tr('Total que pagues tu', 'Total que pagas tú', 'Total you pay')} <span class="ss-r">${rate(tot)}</span></span><span class="ss-v">${fmtEur(r.total_ss_anual)}<small>${tr('/any', '/año', '/yr')}</small></span></div>
+            <div class="ss-why">${tr("A més, l'empresa en paga pel seu compte més d'un 30 % del teu sou brut. No surt a la teva nòmina com a descompte, però també és part del que costes.",
+                'Además, la empresa paga por su cuenta más de un 30 % de tu sueldo bruto. No sale en tu nómina como descuento, pero también es parte de lo que cuestas.',
+                'On top of that, your employer pays over 30 % of your gross salary on its own. It is not deducted from your payslip, but it is part of what you cost.')}</div></div>
+        </div>
+    </section>`;
+}
+
 // Totes les xifres (plegat): només el que no surt ja a la nòmina ni a la barra.
 function salaryBreakdown(r, s) {
     const neg = v => '−' + fmtEur(v);
@@ -396,7 +431,7 @@ function initMoneyInputs(root = document) {
     const nav = document.getElementById('navbar');
     if (nav) nav.innerHTML = `
         <div class="navbar-inner">
-            <a class="navbar-brand" href="index.html">${tr('Calculadora de sou net', 'Calculadora de sueldo neto', 'Net salary calculator')}</a>
+            <a class="navbar-brand logo" href="index.html" aria-label="${tr('Sou net · Calculadora de sou net', 'Sou net · Calculadora de sueldo neto', 'Sou net · Net salary calculator')}"><span aria-hidden="true">sou</span><span class="logo-dot" aria-hidden="true"></span><b aria-hidden="true">net</b></a>
             <div class="lang-switch" role="group" aria-label="${tr('Idioma', 'Idioma', 'Language')}">
                 ${LANGS.map(l => `<button type="button" data-lang="${l}" aria-pressed="${l === LANG}">${l.toUpperCase()}</button>`).join('')}
             </div>
